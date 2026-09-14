@@ -1,4 +1,108 @@
+// const Analysis = require('../models/Analysis');
+
+// const pdfService = require('../services/pdfService');
+// const csvService = require('../services/csvService');
+
+
+// // =========================
+// // Export PDF
+// // =========================
+// const exportPDF = async (req, res) => {
+
+//     try {
+
+//         const analysis = await Analysis
+//             .findById(req.params.id)
+//             .populate('repository');
+
+//         if (!analysis) {
+//             return res.status(404).json({
+//                 success: false,
+//                 message: 'Analysis not found'
+//             });
+//         }
+
+//         const pdf = await pdfService.generatePDF(analysis);
+
+//         res.setHeader(
+//             'Content-Type',
+//             'application/pdf'
+//         );
+
+//         res.setHeader(
+//             'Content-Disposition',
+//             `attachment; filename=${analysis.repository.repositoryName}.pdf`
+//         );
+
+//         res.send(pdf);
+
+//     }
+//     catch (error) {
+
+//         res.status(500).json({
+//             success: false,
+//             message: error.message
+//         });
+
+//     }
+
+// };
+
+
+// // =========================
+// // Export CSV
+// // =========================
+// const exportCSV = async (req, res) => {
+
+//     try {
+
+//         const analysis = await Analysis
+//             .findById(req.params.id)
+//             .populate('repository');
+
+//         if (!analysis) {
+//             return res.status(404).json({
+//                 success: false,
+//                 message: 'Analysis not found'
+//             });
+//         }
+
+//         const csv = csvService.generateCSV(analysis);
+
+//         res.header(
+//             'Content-Type',
+//             'text/csv'
+//         );
+
+//         res.attachment(
+//             `${analysis.repository.repositoryName}.csv`
+//         );
+
+//         res.send(csv);
+
+//     }
+//     catch (error) {
+
+//         res.status(500).json({
+//             success: false,
+//             message: error.message
+//         });
+
+//     }
+
+// };
+
+
+// module.exports = {
+
+//     exportPDF,
+
+//     exportCSV
+
+// };
+
 const Analysis = require('../models/Analysis');
+const Report = require('../models/Report');
 
 const pdfService = require('../services/pdfService');
 const csvService = require('../services/csvService');
@@ -8,11 +112,13 @@ const csvService = require('../services/csvService');
 // Export PDF
 // =========================
 const exportPDF = async (req, res) => {
-
     try {
 
         const analysis = await Analysis
-            .findById(req.params.id)
+            .findOne({
+                _id: req.params.id,
+                user: req.user.id
+            })
             .populate('repository');
 
         if (!analysis) {
@@ -22,7 +128,28 @@ const exportPDF = async (req, res) => {
             });
         }
 
+        // Generate PDF
         const pdf = await pdfService.generatePDF(analysis);
+
+        // Update corresponding report
+        await Report.findOneAndUpdate(
+            {
+                analysis: analysis._id,
+                user: req.user.id
+            },
+            {
+                $set: {
+                    reportType: 'PDF'
+                },
+                $inc: {
+                    downloadCount: 1
+                }
+            }
+        );
+
+        const safeName =
+            (analysis.repository?.repositoryName || 'sustainability-report')
+                .replace(/[^a-zA-Z0-9-_]/g, '_');
 
         res.setHeader(
             'Content-Type',
@@ -31,21 +158,20 @@ const exportPDF = async (req, res) => {
 
         res.setHeader(
             'Content-Disposition',
-            `attachment; filename=${analysis.repository.repositoryName}.pdf`
+            `attachment; filename="${safeName}.pdf"`
         );
 
         res.send(pdf);
 
-    }
-    catch (error) {
+    } catch (error) {
+
+        console.error('Export PDF Error:', error);
 
         res.status(500).json({
             success: false,
             message: error.message
         });
-
     }
-
 };
 
 
@@ -53,11 +179,13 @@ const exportPDF = async (req, res) => {
 // Export CSV
 // =========================
 const exportCSV = async (req, res) => {
-
     try {
 
         const analysis = await Analysis
-            .findById(req.params.id)
+            .findOne({
+                _id: req.params.id,
+                user: req.user.id
+            })
             .populate('repository');
 
         if (!analysis) {
@@ -67,36 +195,54 @@ const exportCSV = async (req, res) => {
             });
         }
 
+        // Generate CSV
         const csv = csvService.generateCSV(analysis);
 
-        res.header(
-            'Content-Type',
-            'text/csv'
+        // Update corresponding report
+        await Report.findOneAndUpdate(
+            {
+                analysis: analysis._id,
+                user: req.user.id
+            },
+            {
+                $set: {
+                    reportType: 'CSV'
+                },
+                $inc: {
+                    downloadCount: 1
+                }
+            }
         );
 
-        res.attachment(
-            `${analysis.repository.repositoryName}.csv`
+        const safeName =
+            (analysis.repository?.repositoryName || 'sustainability-report')
+                .replace(/[^a-zA-Z0-9-_]/g, '_');
+
+        res.setHeader(
+            'Content-Type',
+            'text/csv; charset=utf-8'
+        );
+
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${safeName}.csv"`
         );
 
         res.send(csv);
 
-    }
-    catch (error) {
+    } catch (error) {
+
+        console.error('Export CSV Error:', error);
 
         res.status(500).json({
             success: false,
             message: error.message
         });
-
     }
-
 };
 
 
 module.exports = {
-
     exportPDF,
-
     exportCSV
-
 };

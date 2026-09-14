@@ -1,35 +1,58 @@
-const express =
-require('express');
+const express = require("express");
 
-const router =
-express.Router();
+const router = express.Router();
 
-const {
-    protect
-} =
-require('../middleware/authMiddleware');
+const { protect } =
+  require("../middleware/authMiddleware");
 
 const {
-
-    getSettings,
-
-    updateSettings
-
+  getSettings,
+  updateProfile,
+  updateNotifications,
+  updateAppearance,
+  updatePassword,
 } =
-require('../controllers/settingsController');
+  require("../controllers/settingsController");
 
 
+// Get Settings
 router.get(
-    '/',
-    protect,
-    getSettings
+  "/",
+  protect,
+  getSettings
 );
 
+
+// Profile
 router.put(
-    '/',
-    protect,
-    updateSettings
+  "/profile",
+  protect,
+  updateProfile
 );
 
-module.exports =
-router;
+
+// Notifications
+router.put(
+  "/notifications",
+  protect,
+  updateNotifications
+);
+
+
+// Appearance
+router.put(
+  "/appearance",
+  protect,
+  updateAppearance
+);
+
+
+// Security / Password
+router.put(
+  "/security",
+  protect,
+  updatePassword
+);
+
+
+module.exports = router;

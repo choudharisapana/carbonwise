@@ -1,17 +1,22 @@
-// frontend/src/components/layout/Layout.jsx
-import React, { useState, useEffect } from 'react';
-import Navbar from './Navbar';
-import Sidebar from './Sidebar';
+import React, { useState, useEffect } from "react";
+import Navbar from "./Navbar";
+import Sidebar from "./Sidebar";
+import Footer from "./Footer";
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Handle responsive sidebar
+  // =========================================
+  // Responsive Sidebar
+  // =========================================
+
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth < 1024;
+      const mobile = window.innerWidth < 768;
+
       setIsMobile(mobile);
+
       if (mobile) {
         setSidebarOpen(false);
       } else {
@@ -20,32 +25,104 @@ const Layout = ({ children }) => {
     };
 
     handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
   }, []);
 
+
+  // =========================================
+  // Toggle Sidebar
+  // =========================================
+
   const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+    setSidebarOpen((prev) => !prev);
   };
 
+
   return (
-    <div className="min-h-screen bg-dark-950">
-      <Navbar onToggleSidebar={toggleSidebar} />
-      
-      <div className="flex">
-        <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
-        
-        <main 
-          className={`flex-1 transition-all duration-300 ${
-            sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'
-          }`}
+    <div className="min-h-screen bg-[#030712] text-white">
+
+      {/* ===================================== */}
+      {/* Navbar */}
+      {/* ===================================== */}
+
+      <Navbar
+        onToggleSidebar={toggleSidebar}
+        isMobile={isMobile}
+      />
+
+
+      {/* ===================================== */}
+      {/* Main Layout */}
+      {/* ===================================== */}
+
+      <div className="flex min-h-screen">
+
+        {/* Sidebar */}
+
+        <Sidebar
+          isOpen={sidebarOpen}
+          toggleSidebar={toggleSidebar}
+        />
+
+
+        {/* =================================== */}
+        {/* Main Content */}
+        {/* =================================== */}
+
+        <main
+          className={`
+            flex-1
+            min-w-0
+            flex
+            flex-col
+            min-h-screen
+
+            transition-all
+            duration-300
+            ease-in-out
+
+            ${
+              isMobile
+                ? "ml-0"
+                : sidebarOpen
+                  ? "ml-64"
+                  : "ml-[76px]"
+            }
+          `}
         >
-          {/* Content with top padding for navbar */}
-          <div className="pt-20 px-4 md:px-6 pb-8 min-h-screen">
+
+          <div
+            className="
+              flex-1
+
+              pt-20
+
+              px-4
+              sm:px-5
+              md:px-6
+              lg:px-8
+
+              pb-8
+
+              w-full
+            "
+          >
+
             {children}
+
           </div>
+
+          <Footer />
+
         </main>
+
       </div>
+
     </div>
   );
 };

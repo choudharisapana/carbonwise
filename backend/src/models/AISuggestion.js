@@ -6,13 +6,23 @@ const aiSuggestionSchema = new mongoose.Schema({
         ref: 'Repository'
     },
 
+    // Every suggestion set is tied to the specific analysis run it was
+    // generated from, so old suggestions stay accurate to that snapshot
+    // even if the repo is re-analyzed later.
+    analysis: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Analysis',
+        required: true
+    },
+
     suggestionType: {
         type: String,
         enum: [
             'energy',
             'performance',
             'carbon',
-            'architecture'
+            'architecture',
+            'dependency'
         ]
     },
 

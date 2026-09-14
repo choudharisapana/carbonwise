@@ -1,6 +1,7 @@
 const Report = require("../models/Report");
 const Analysis = require("../models/Analysis");
 const Repository = require("../models/Repository");
+const notificationService = require("../services/notificationService");
 
 // Generate Report
 const generateReport = async (req, res) => {
@@ -27,6 +28,14 @@ const generateReport = async (req, res) => {
       });
     }
 
+    // Use the user's saved default export format from Settings
+    // (falls back to PDF if not set) — this was never being read before,
+    // so every report's reportType stayed undefined and downloads always
+    // fell through to CSV regardless of the button clicked.
+    // req.user is already the full user doc (set by the protect middleware).
+    const defaultReportType =
+      req.user?.preferences?.appearance?.defaultExport || "PDF";
+
     // Create Report
     // Check if report already exists for this repository
 let report = await Report.findOne({
@@ -44,10 +53,21 @@ if (report) {
   report.energyConsumption = analysis.energyConsumption;
   report.co2Emission = analysis.co2Emission;
   report.recommendations = analysis.recommendations;
+  report.reportType = report.reportType || defaultReportType;
 
   report.generatedAt = new Date();
 
   await report.save();
+
+  // Only notify if the user hasn't turned this off in Settings
+  if (req.user?.preferences?.notifications?.reportGenerated !== false) {
+    await notificationService.createNotification({
+      user: req.user.id,
+      title: "Report Updated",
+      message: `${repository.repositoryName} sustainability report has been updated`,
+      type: "report",
+    });
+  }
 
   return res.status(200).json({
     success: true,
@@ -65,12 +85,24 @@ report = await Report.create({
 
   reportName: `${repository.repositoryName} Sustainability Report`,
 
+  reportType: defaultReportType,
+
   carbonScore: analysis.carbonScore,
   sustainabilityScore: analysis.sustainabilityScore,
   energyConsumption: analysis.energyConsumption,
   co2Emission: analysis.co2Emission,
   recommendations: analysis.recommendations,
 });
+
+// Only notify if the user hasn't turned this off in Settings
+if (req.user?.preferences?.notifications?.reportGenerated !== false) {
+  await notificationService.createNotification({
+    user: req.user.id,
+    title: "Report Generated",
+    message: `${repository.repositoryName} sustainability report is ready`,
+    type: "report",
+  });
+}
 
 return res.status(201).json({
   success: true,

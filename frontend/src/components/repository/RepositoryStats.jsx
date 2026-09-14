@@ -31,16 +31,13 @@ const RepositoryStats = ({ stats }) => {
                 )
         },
 
-        {
-            title: 'AVG CARBON',
-            value: stats?.avgCarbon || '0%',
-            icon: FaChartLine,
-            color: 'amber',
-            progress:
-                parseInt(
-                    stats?.avgCarbon || 0
-                )
-        },
+       {
+    title: 'AVG CARBON',
+    value: stats?.avgCarbon || '0 gCO₂e',
+    icon: FaChartLine,
+    color: 'amber',
+    progress: null
+},
 
         {
             title: 'ANALYZED REPOS',
@@ -201,36 +198,29 @@ const RepositoryStats = ({ stats }) => {
 
                             {/* Progress */}
 
-                            <div className="
-                                mt-5
-                            ">
+{/* Progress */}
 
-                                <div className="
-                                    w-full
-                                    h-2
-                                    bg-gray-800
-                                    rounded-full
-                                    overflow-hidden
-                                ">
-
-                                    <div
-                                        className={`
-                                            h-full
-                                            ${colors.progress}
-                                            transition-all
-                                            duration-700
-                                        `}
-                                        style={{
-                                            width:
-                                                `${item.progress}%`
-                                        }}
-                                    />
-
-                                </div>
+{item.progress !== null && (
+    <div className="mt-5">
+        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div
+                className={`
+                    h-full
+                    ${colors.progress}
+                    transition-all
+                    duration-700
+                `}
+                style={{
+                    width: `${item.progress}%`
+                }}
+            />
+        </div>
+    </div>
+)}
 
                             </div>
 
-                        </div>
+                        
                     );
                 }
             )}

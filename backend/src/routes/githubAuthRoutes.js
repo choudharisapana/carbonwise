@@ -1,22 +1,59 @@
 const express = require('express');
+
 const router = express.Router();
+
 const { protect } = require('../middleware/authMiddleware');
 
 const {
   initiateGithubConnect,
   githubOAuthCallback,
+  initiateGithubLogin,
+  githubLoginCallback,
   getGithubStatus,
   disconnectGithub
 } = require('../controllers/githubOAuthController');
+// GitHub Login / Register
+router.get(
+  '/login',
+  initiateGithubLogin
+);
 
-// Note: /connect and /callback are NOT behind `protect` middleware because
-// they're plain browser redirects (GitHub navigates the user's browser
-// here directly) — they can't carry an Authorization header. Identity is
-// verified manually inside the controllers via the token/state params.
-router.get('/connect', initiateGithubConnect);
-router.get('/callback', githubOAuthCallback);
 
-router.get('/status', protect, getGithubStatus);
-router.delete('/disconnect', protect, disconnectGithub);
+// GitHub Login Callback
+router.get(
+  '/login/callback',
+  githubLoginCallback
+);
+
+
+// Common GitHub Callback
+router.get(
+  '/callback',
+  githubOAuthCallback
+);
+
+
+// Connect GitHub Account
+router.get(
+  '/connect',
+  initiateGithubConnect
+);
+
+
+// GitHub Status
+router.get(
+  '/status',
+  protect,
+  getGithubStatus
+);
+
+
+// Disconnect GitHub
+router.delete(
+  '/disconnect',
+  protect,
+  disconnectGithub
+);
+
 
 module.exports = router;

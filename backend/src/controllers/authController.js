@@ -166,8 +166,11 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user
-    const user = await User.findOne({ email });
+    // Find user + explicitly include password
+    const user = await User.findOne({
+      email: email.trim().toLowerCase()
+    }).select('+password');
+
     if (!user) {
       return res.status(401).json({
         success: false,

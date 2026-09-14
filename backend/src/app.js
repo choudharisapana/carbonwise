@@ -1,9 +1,11 @@
+
 // backend/src/app.js
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
+const cookieParser = require('cookie-parser');
 const { errorHandler, notFound } = require('./middleware/errorMiddleware');
 const { apiLimiter } = require('./middleware/rateLimiter');
 
@@ -30,6 +32,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // General rate limit on all API routes (auth routes have their own stricter limit)
 app.use('/api', apiLimiter);
@@ -37,7 +40,7 @@ app.use('/api', apiLimiter);
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'CodeCarbon API Running 🚀'
+    message: 'CodeCarbon API Running '
   });
 });
 

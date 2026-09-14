@@ -1,5 +1,6 @@
 // frontend/src/components/layout/Footer.jsx
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { FaLeaf, FaHeart, FaGithub, FaReact, FaNodeJs, FaDatabase } from 'react-icons/fa';
 import { SiMongodb } from 'react-icons/si';
 
@@ -13,7 +14,7 @@ const Footer = () => {
           {/* Left Section */}
           <div className="flex items-center gap-2">
             <FaLeaf className="text-primary-500 text-lg" />
-            <span className="text-sm font-semibold text-white">CodeCarbon AI</span>
+            <span className="text-sm font-semibold text-white">CarbonWise </span>
             <span className="text-xs text-dark-500">|</span>
             <span className="text-xs text-dark-400">Green DevOps Platform</span>
           </div>
@@ -44,7 +45,7 @@ const Footer = () => {
           {/* Right Section */}
           <div className="flex items-center gap-4">
             <span className="text-xs text-dark-500">
-              © {currentYear} CodeCarbon AI
+              © {currentYear} CarbonWise
             </span>
             <div className="flex items-center gap-1 text-xs text-dark-500">
               <FaHeart className="text-red-500 animate-pulse" size={12} />
@@ -55,9 +56,9 @@ const Footer = () => {
 
         {/* Bottom Bar */}
         <div className="mt-3 pt-3 border-t border-dark-800/50 flex flex-wrap items-center justify-center gap-4 text-[10px] text-dark-600">
-          <span>Privacy Policy</span>
+          <Link to="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Policy</Link>
           <span>•</span>
-          <span>Terms of Service</span>
+          <Link to="/terms" className="hover:text-emerald-400 transition-colors">Terms of Service</Link>
           <span>•</span>
           <span>Cookie Policy</span>
           <span>•</span>

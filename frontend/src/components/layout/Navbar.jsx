@@ -1,84 +1,106 @@
-// frontend/src/components/layout/Navbar.jsx
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  FaLeaf, 
-  FaBars, 
-  FaBell, 
-  FaUser, 
-  FaCog, 
-  FaSignOutAlt, 
+import {
+  FaLeaf,
+  FaBars,
+  FaBell,
+  FaUser,
+  FaSignOutAlt,
   FaUserCircle,
   FaSearch,
-  FaTimes
+  FaTimes,
+  FaCheck
 } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
 import notificationService from '../../services/notificationService';
 
 const timeAgo = (dateString) => {
-  const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
-  if (seconds < 60) return 'just now';
+  const seconds = Math.floor(
+    (new Date() - new Date(dateString)) / 1000
+  );
+
+  if (seconds < 60) return 'Just now';
+
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
+
+  if (minutes < 60) {
+    return `${minutes} min ago`;
+  }
+
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+
+  if (hours < 24) {
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  }
+
   const days = Math.floor(hours / 24);
+
   return `${days} day${days > 1 ? 's' : ''} ago`;
 };
 
 const Navbar = ({ onToggleSidebar }) => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(true);
+
   const dropdownRef = useRef(null);
   const notificationRef = useRef(null);
   const searchInputRef = useRef(null);
 
-  // Close dropdowns when clicking outside
+  // ==========================================
+  // CLOSE DROPDOWNS WHEN CLICKING OUTSIDE
+  // ==========================================
+
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target)
+      ) {
         setShowDropdown(false);
       }
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target)
+      ) {
         setShowNotifications(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
-  // Focus search input when opened
+  // ==========================================
+  // FOCUS SEARCH INPUT ON MOBILE
+  // ==========================================
+
   useEffect(() => {
     if (isSearchOpen && searchInputRef.current) {
       searchInputRef.current.focus();
     }
   }, [isSearchOpen]);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/repository?search=${encodeURIComponent(searchQuery)}`);
-      setIsSearchOpen(false);
-      setSearchQuery('');
-    }
-  };
-
-  const [notifications, setNotifications] = useState([]);
-  const [notifLoading, setNotifLoading] = useState(true);
+  // ==========================================
+  // FETCH NOTIFICATIONS
+  // ==========================================
 
   const fetchNotifications = async () => {
     try {
       const data = await notificationService.getAll();
+
       setNotifications(data.notifications || []);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
@@ -89,127 +111,519 @@ const Navbar = ({ onToggleSidebar }) => {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll every 30s so new analysis/report notifications show up without a manual refresh
+
+    // Refresh notifications every 30 seconds
     const interval = setInterval(fetchNotifications, 30000);
+
     return () => clearInterval(interval);
   }, []);
+
+  // ==========================================
+  // SEARCH REPOSITORIES
+  // ==========================================
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+
+    const query = searchQuery.trim();
+
+    if (!query) return;
+
+    /*
+      IMPORTANT:
+      Your current project route is /repository.
+      Keep this route if RepositoryAnalysis.jsx
+      is registered at /repository.
+    */
+    navigate(`/repository?search=${encodeURIComponent(query)}`);
+
+    setSearchQuery('');
+    setIsSearchOpen(false);
+  };
+
+  // ==========================================
+  // PROFILE
+  // ==========================================
+
+  const handleProfile = () => {
+    setShowDropdown(false);
+    navigate('/settings');
+  };
+
+  // ==========================================
+  // LOGOUT
+  // ==========================================
+
+  const handleLogout = () => {
+    setShowDropdown(false);
+    logout();
+    navigate('/login');
+  };
+
+  // ==========================================
+  // MARK NOTIFICATION AS READ
+  // ==========================================
 
   const handleMarkAsRead = async (id) => {
     try {
       await notificationService.markAsRead(id);
+
       setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
+        prev.map((notification) =>
+          notification._id === id
+            ? {
+                ...notification,
+                isRead: true
+              }
+            : notification
+        )
       );
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
     }
   };
 
+  // ==========================================
+  // MARK ALL AS READ
+  // ==========================================
+
   const handleMarkAllRead = async () => {
     try {
       await notificationService.markAllAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+
+      setNotifications((prev) =>
+        prev.map((notification) => ({
+          ...notification,
+          isRead: true
+        }))
+      );
     } catch (error) {
       console.error('Failed to mark all as read:', error);
     }
   };
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadCount = notifications.filter(
+    (notification) => !notification.isRead
+  ).length;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-900/90 backdrop-blur-md border-b border-dark-700">
-      <div className="flex items-center justify-between px-4 md:px-6 py-3">
-        {/* Left Section - Logo & Toggle */}
-        <div className="flex items-center gap-3">
+    <nav
+      className="
+        fixed
+        top-0
+        left-0
+        right-0
+        z-50
+        bg-dark-950/95
+        backdrop-blur-xl
+        border-b
+        border-dark-700
+      "
+    >
+      <div
+        className="
+          min-h-[68px]
+          flex
+          items-center
+          justify-between
+          gap-3
+          px-3
+          sm:px-5
+          lg:px-6
+        "
+      >
+
+        {/* =====================================================
+            LEFT SECTION
+        ====================================================== */}
+
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+
+          {/* Sidebar Toggle */}
           <button
+            type="button"
             onClick={onToggleSidebar}
-            className="text-dark-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-dark-800"
+            className="
+              w-9
+              h-9
+              flex
+              items-center
+              justify-center
+              rounded-lg
+              text-dark-300
+              hover:text-white
+              hover:bg-dark-800
+              transition-all
+              duration-200
+            "
             aria-label="Toggle sidebar"
+            title="Toggle sidebar"
           >
-            <FaBars size={20} />
+            <FaBars size={18} />
           </button>
-          
-          <Link to="/dashboard" className="flex items-center gap-2 group">
-            <div className="relative">
-              <div className="absolute inset-0 bg-primary-500/20 blur-xl rounded-full group-hover:bg-primary-500/30 transition-all duration-300"></div>
-              <FaLeaf className="text-primary-500 text-2xl relative" />
+
+          {/* CarbonWise Logo */}
+          <Link
+            to="/dashboard"
+            className="
+              flex
+              items-center
+              gap-2.5
+              group
+              flex-shrink-0
+            "
+          >
+            {/* Logo Icon */}
+            <div
+             
+            >
+            
             </div>
-            <span className="text-xl font-bold text-white hidden sm:block">
-              Code<span className="text-primary-500">Carbon</span> AI
+
+            {/* Full Logo Name */}
+            <span
+              className="
+                text-green-400
+                font-bold
+                text-lg
+                sm:text-xl
+                tracking-tight
+                whitespace-nowrap
+              "
+            >
+              CarbonWise
             </span>
           </Link>
         </div>
 
-        {/* Center Section - Search */}
-        <div className="hidden md:flex flex-1 max-w-xl mx-4">
-          <form onSubmit={handleSearch} className="w-full relative">
+        {/* =====================================================
+            CENTER - SEARCH
+        ====================================================== */}
+
+        <div
+          className="
+            hidden
+            md:flex
+            flex-1
+            justify-center
+            px-4
+            lg:px-8
+          "
+        >
+          <form
+            onSubmit={handleSearch}
+            className="
+              relative
+              w-full
+              max-w-[530px]
+            "
+          >
+            <FaSearch
+              className="
+                absolute
+                left-3.5
+                top-1/2
+                -translate-y-1/2
+                text-dark-400
+              "
+              size={15}
+            />
+
             <input
               type="text"
-              placeholder="Search repositories..."
-              className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-white placeholder-dark-400 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all duration-300 pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search repositories..."
+              className="
+                w-full
+                h-11
+                pl-10
+                pr-4
+                rounded-xl
+                bg-dark-900
+                border
+                border-dark-700
+                text-white
+                text-sm
+                placeholder:text-dark-400
+                outline-none
+                transition-all
+                duration-200
+                focus:border-primary-500
+                focus:ring-2
+                focus:ring-primary-500/10
+              "
             />
-            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400" size={16} />
           </form>
         </div>
 
-        {/* Right Section - Actions */}
-        <div className="flex items-center gap-2 md:gap-3">
-          {/* Mobile Search Toggle */}
+        {/* =====================================================
+            RIGHT SECTION
+        ====================================================== */}
+
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+
+          {/* Mobile Search */}
           <button
-            onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className="md:hidden text-dark-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-dark-800"
+            type="button"
+            onClick={() => setIsSearchOpen((prev) => !prev)}
+            className="
+              md:hidden
+              w-9
+              h-9
+              flex
+              items-center
+              justify-center
+              rounded-lg
+              text-dark-300
+              hover:text-white
+              hover:bg-dark-800
+              transition-all
+            "
+            aria-label="Search"
+            title="Search"
           >
-            <FaSearch size={18} />
+            <FaSearch size={17} />
           </button>
 
-          {/* Notifications */}
-          <div className="relative" ref={notificationRef}>
+          {/* =================================================
+              NOTIFICATIONS
+          ================================================== */}
+
+          <div
+            className="relative"
+            ref={notificationRef}
+          >
             <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="relative text-dark-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-dark-800"
+              type="button"
+              onClick={() =>
+                setShowNotifications((prev) => !prev)
+              }
+              className="
+                relative
+                w-10
+                h-10
+                flex
+                items-center
+                justify-center
+                rounded-xl
+                text-dark-300
+                hover:text-white
+                hover:bg-dark-800
+                transition-all
+                duration-200
+              "
               aria-label="Notifications"
+              title="Notifications"
             >
-              <FaBell size={20} />
+              <FaBell size={19} />
+
+              {/* Unread Badge */}
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center text-white border-2 border-dark-900">
-                  {unreadCount}
+                <span
+                  className="
+                    absolute
+                    top-0.5
+                    right-0.5
+                    min-w-[17px]
+                    h-[17px]
+                    px-1
+                    rounded-full
+                    bg-red-500
+                    border-2
+                    border-dark-950
+                    text-[9px]
+                    font-bold
+                    text-white
+                    flex
+                    items-center
+                    justify-center
+                  "
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
             </button>
 
-            {/* Notifications Dropdown */}
+            {/* Notification Dropdown */}
             {showNotifications && (
-              <div className="absolute right-0 mt-2 w-80 bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-2 animate-fade-in">
-                <div className="px-4 py-3 border-b border-dark-700 flex items-center justify-between">
-                  <h4 className="text-sm font-semibold text-white">Notifications</h4>
+              <div
+                className="
+                  absolute
+                  right-0
+                  top-full
+                  mt-2
+                  w-[320px]
+                  max-w-[calc(100vw-24px)]
+                  bg-dark-900
+                  border
+                  border-dark-700
+                  rounded-2xl
+                  shadow-2xl
+                  overflow-hidden
+                  z-[60]
+                "
+              >
+                {/* Header */}
+                <div
+                  className="
+                    px-4
+                    py-3.5
+                    border-b
+                    border-dark-700
+                    flex
+                    items-center
+                    justify-between
+                  "
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="
+                        w-7
+                        h-7
+                        rounded-lg
+                        bg-primary-500/10
+                        flex
+                        items-center
+                        justify-center
+                      "
+                    >
+                      <FaBell
+                        className="text-primary-400"
+                        size={13}
+                      />
+                    </div>
+
+                    <h4 className="text-sm font-semibold text-white">
+                      Notifications
+                    </h4>
+                  </div>
+
                   {unreadCount > 0 && (
                     <button
+                      type="button"
                       onClick={handleMarkAllRead}
-                      className="text-xs text-primary-500 hover:text-primary-400 transition-colors"
+                      className="
+                        text-xs
+                        text-primary-400
+                        hover:text-primary-300
+                        transition-colors
+                      "
                     >
                       Mark all read
                     </button>
                   )}
                 </div>
-                <div className="max-h-80 overflow-y-auto">
+
+                {/* Notification Content */}
+                <div className="max-h-[340px] overflow-y-auto">
+
                   {notifLoading ? (
-                    <p className="px-4 py-6 text-sm text-dark-400 text-center">Loading...</p>
+                    <div className="px-4 py-8 text-center">
+                      <p className="text-sm text-dark-400">
+                        Loading notifications...
+                      </p>
+                    </div>
                   ) : notifications.length === 0 ? (
-                    <p className="px-4 py-6 text-sm text-dark-400 text-center">No notifications yet</p>
+                    <div className="px-4 py-10 text-center">
+                      <div
+                        className="
+                          w-11
+                          h-11
+                          mx-auto
+                          mb-3
+                          rounded-full
+                          bg-dark-800
+                          flex
+                          items-center
+                          justify-center
+                        "
+                      >
+                        <FaBell
+                          className="text-dark-500"
+                          size={17}
+                        />
+                      </div>
+
+                      <p className="text-sm text-dark-300">
+                        No notifications yet
+                      </p>
+
+                      <p className="text-xs text-dark-500 mt-1">
+                        You're all caught up.
+                      </p>
+                    </div>
                   ) : (
                     notifications.slice(0, 8).map((notification) => (
                       <div
                         key={notification._id}
-                        onClick={() => !notification.isRead && handleMarkAsRead(notification._id)}
-                        className={`px-4 py-3 hover:bg-dark-700 transition-colors cursor-pointer ${
-                          !notification.isRead ? 'border-l-2 border-primary-500' : ''
-                        }`}
+                        onClick={() =>
+                          !notification.isRead &&
+                          handleMarkAsRead(notification._id)
+                        }
+                        className={`
+                          px-4
+                          py-3.5
+                          border-b
+                          border-dark-800
+                          hover:bg-dark-800
+                          cursor-pointer
+                          transition-colors
+                          ${
+                            !notification.isRead
+                              ? 'bg-primary-500/[0.03] border-l-2 border-l-primary-500'
+                              : ''
+                          }
+                        `}
                       >
-                        <p className="text-sm font-medium text-white">{notification.title}</p>
-                        <p className="text-xs text-dark-400 mt-1">{notification.message}</p>
-                        <p className="text-xs text-dark-500 mt-1">{timeAgo(notification.createdAt)}</p>
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`
+                              mt-0.5
+                              w-7
+                              h-7
+                              rounded-lg
+                              flex
+                              items-center
+                              justify-center
+                              flex-shrink-0
+                              ${
+                                !notification.isRead
+                                  ? 'bg-primary-500/10 text-primary-400'
+                                  : 'bg-dark-800 text-dark-500'
+                              }
+                            `}
+                          >
+                            <FaBell size={11} />
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-white">
+                              {notification.title}
+                            </p>
+
+                            <p
+                              className="
+                                text-xs
+                                text-dark-400
+                                mt-1
+                                leading-relaxed
+                              "
+                            >
+                              {notification.message}
+                            </p>
+
+                            <p
+                              className="
+                                text-[11px]
+                                text-dark-500
+                                mt-1.5
+                              "
+                            >
+                              {timeAgo(notification.createdAt)}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     ))
                   )}
@@ -218,79 +632,263 @@ const Navbar = ({ onToggleSidebar }) => {
             )}
           </div>
 
-          {/* User Profile */}
-          <div className="relative" ref={dropdownRef}>
+          {/* =================================================
+              PROFILE
+          ================================================== */}
+
+          <div
+            className="relative"
+            ref={dropdownRef}
+          >
             <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center gap-2 text-dark-300 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-dark-800"
-              aria-label="User menu"
+              type="button"
+              onClick={() =>
+                setShowDropdown((prev) => !prev)
+              }
+              className="
+                w-10
+                h-10
+                rounded-xl
+                flex
+                items-center
+                justify-center
+                bg-primary-500/10
+                border
+                border-primary-500/20
+                text-primary-400
+                hover:bg-primary-500/15
+                hover:border-primary-500/40
+                hover:text-primary-300
+                transition-all
+                duration-200
+              "
+              aria-label="Profile menu"
+              title="Profile"
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white text-sm font-semibold shadow-lg shadow-primary-500/20">
-                {user?.name ? user.name.charAt(0).toUpperCase() : <FaUserCircle size={20} />}
-              </div>
-              <span className="hidden lg:block text-sm font-medium">
-                {user?.name || 'User'}
-              </span>
+              <FaUserCircle size={23} />
             </button>
 
-            {/* User Dropdown */}
+            {/* Profile Dropdown */}
             {showDropdown && (
-              <div className="absolute right-0 mt-2 w-56 bg-dark-800 border border-dark-700 rounded-xl shadow-2xl py-2 animate-fade-in">
-                <div className="px-4 py-3 border-b border-dark-700">
-                  <p className="text-sm font-medium text-white">{user?.name || 'User'}</p>
-                  <p className="text-xs text-dark-400 truncate">{user?.email || 'user@example.com'}</p>
-                </div>
-                
-                <div className="py-1">
-                  <Link
-                    to="/profile"
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
-                    onClick={() => setShowDropdown(false)}
-                  >
-                    <FaUser size={14} className="text-dark-400" />
-                    Profile
-                  </Link>
-                  <Link
-                    to="/settings"
-                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-dark-300 hover:bg-dark-700 hover:text-white transition-colors"
-                    onClick={() => setShowDropdown(false)}
-                  >
-                    <FaCog size={14} className="text-dark-400" />
-                    Settings
-                  </Link>
-                </div>
-                
-                <hr className="border-dark-700 my-1" />
-                
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:bg-dark-700 hover:text-red-300 transition-colors"
+              <div
+                className="
+                  absolute
+                  right-0
+                  top-full
+                  mt-2
+                  w-[240px]
+                  bg-dark-900
+                  border
+                  border-dark-700
+                  rounded-2xl
+                  shadow-2xl
+                  overflow-hidden
+                  z-[60]
+                "
+              >
+                {/* User Info */}
+                <div
+                  className="
+                    px-4
+                    py-4
+                    border-b
+                    border-dark-700
+                    bg-dark-800/40
+                  "
                 >
-                  <FaSignOutAlt size={14} />
-                  Logout
-                </button>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="
+                        w-10
+                        h-10
+                        rounded-xl
+                        bg-primary-500/10
+                        border
+                        border-primary-500/20
+                        flex
+                        items-center
+                        justify-center
+                        text-primary-400
+                      "
+                    >
+                      <FaUserCircle size={23} />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">
+                        {user?.name || 'User'}
+                      </p>
+
+                      <p className="text-xs text-dark-400 truncate mt-0.5">
+                        {user?.email || ''}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Profile */}
+                <div className="p-2">
+                  <button
+                    type="button"
+                    onClick={handleProfile}
+                    className="
+                      w-full
+                      flex
+                      items-center
+                      gap-3
+                      px-3
+                      py-2.5
+                      rounded-lg
+                      text-sm
+                      text-dark-200
+                      hover:text-white
+                      hover:bg-dark-800
+                      transition-colors
+                      text-left
+                    "
+                  >
+                    <span
+                      className="
+                        w-8
+                        h-8
+                        rounded-lg
+                        bg-dark-800
+                        flex
+                        items-center
+                        justify-center
+                      "
+                    >
+                      <FaUser
+                        size={13}
+                        className="text-primary-400"
+                      />
+                    </span>
+
+                    <span>Profile</span>
+                  </button>
+                </div>
+
+                {/* Logout */}
+                <div
+                  className="
+                    border-t
+                    border-dark-700
+                    p-2
+                  "
+                >
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="
+                      w-full
+                      flex
+                      items-center
+                      gap-3
+                      px-3
+                      py-2.5
+                      rounded-lg
+                      text-sm
+                      text-red-400
+                      hover:text-red-300
+                      hover:bg-red-500/10
+                      transition-colors
+                      text-left
+                    "
+                  >
+                    <span
+                      className="
+                        w-8
+                        h-8
+                        rounded-lg
+                        bg-red-500/10
+                        flex
+                        items-center
+                        justify-center
+                      "
+                    >
+                      <FaSignOutAlt size={13} />
+                    </span>
+
+                    <span>Logout</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Mobile Search Bar */}
+      {/* =====================================================
+          MOBILE SEARCH
+      ====================================================== */}
+
       {isSearchOpen && (
-        <div className="md:hidden px-4 pb-3 animate-fade-in">
-          <form onSubmit={handleSearch} className="relative">
+        <div
+          className="
+            md:hidden
+            px-4
+            pb-3
+            border-t
+            border-dark-800
+            pt-3
+            bg-dark-950
+          "
+        >
+          <form
+            onSubmit={handleSearch}
+            className="relative"
+          >
+            <FaSearch
+              className="
+                absolute
+                left-3.5
+                top-1/2
+                -translate-y-1/2
+                text-dark-400
+              "
+              size={15}
+            />
+
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search repositories..."
-              className="w-full px-4 py-2.5 bg-dark-800 border border-dark-700 rounded-xl text-white placeholder-dark-400 focus:outline-none focus:border-primary-500 pr-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search repositories..."
+              className="
+                w-full
+                h-11
+                pl-10
+                pr-10
+                rounded-xl
+                bg-dark-900
+                border
+                border-dark-700
+                text-white
+                text-sm
+                placeholder:text-dark-400
+                outline-none
+                focus:border-primary-500
+                focus:ring-2
+                focus:ring-primary-500/10
+              "
             />
+
             <button
               type="button"
-              onClick={() => setIsSearchOpen(false)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-400 hover:text-white transition-colors"
+              onClick={() => {
+                setIsSearchOpen(false);
+                setSearchQuery('');
+              }}
+              className="
+                absolute
+                right-3
+                top-1/2
+                -translate-y-1/2
+                text-dark-400
+                hover:text-white
+              "
+              aria-label="Close search"
             >
               <FaTimes size={16} />
             </button>

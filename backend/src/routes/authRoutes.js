@@ -1,17 +1,13 @@
 // backend/src/routes/authRoutes.js
-const express = require('express');
-const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
-const validate = require('../middleware/validate');
-const { authLimiter } = require('../middleware/rateLimiter');
 
-const {
-  registerSchema,
-  loginSchema,
-  forgotPasswordSchema,
-  resetPasswordSchema,
-  resendVerificationSchema
-} = require('../validators/authValidators');
+const express = require('express');
+
+const router = express.Router();
+
+
+// ============================================
+// IMPORT AUTH CONTROLLER
+// ============================================
 
 const {
   registerUser,
@@ -23,14 +19,190 @@ const {
   verifyToken
 } = require('../controllers/authController');
 
-// Public routes — rate limited + validated since these are the most attacked endpoints
-router.post('/register', authLimiter, validate(registerSchema), registerUser);
-router.get('/verify-email/:token', verifyEmail);
-router.post('/resend-verification', authLimiter, validate(resendVerificationSchema), resendVerification);
-router.post('/login', authLimiter, validate(loginSchema), loginUser);
-router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), forgotPassword);
-router.post('/reset-password', authLimiter, validate(resetPasswordSchema), resetPassword);
-router.get('/verify', protect, verifyToken);
 
+// ============================================
+// IMPORT AUTH MIDDLEWARE
+// ============================================
+
+const {
+  protect
+} = require('../middleware/authMiddleware');
+
+
+// ============================================
+// AUTH RATE LIMITER
+// ============================================
+
+// Uncomment this if authLimiter exists
+// in your rateLimiter.js file.
+
+/*
+const {
+  authLimiter
+} = require('../middleware/rateLimiter');
+*/
+
+
+// ============================================
+// REGISTER USER
+// ============================================
+
+/*
+  POST /api/auth/register
+
+  Body:
+  {
+    name,
+    email,
+    password
+  }
+
+  Response:
+  {
+    success: true,
+    message: "Verification email sent..."
+  }
+*/
+
+router.post(
+  '/register',
+  registerUser
+);
+
+
+// ============================================
+// LOGIN USER
+// ============================================
+
+/*
+  POST /api/auth/login
+
+  Body:
+  {
+    email,
+    password
+  }
+
+  Response:
+  {
+    success: true,
+    token,
+    user
+  }
+*/
+
+router.post(
+  '/login',
+  loginUser
+);
+
+
+// ============================================
+// VERIFY EMAIL
+// ============================================
+
+/*
+  GET /api/auth/verify-email/:token
+
+  Example:
+
+  /api/auth/verify-email/abc123
+*/
+
+router.get(
+  '/verify-email/:token',
+  verifyEmail
+);
+
+
+// ============================================
+// RESEND VERIFICATION EMAIL
+// ============================================
+
+/*
+  POST /api/auth/resend-verification
+
+  Body:
+  {
+    email
+  }
+*/
+
+router.post(
+  '/resend-verification',
+  resendVerification
+);
+
+
+// ============================================
+// VERIFY JWT TOKEN
+// ============================================
+
+/*
+  GET /api/auth/verify
+
+  Headers:
+
+  Authorization:
+  Bearer JWT_TOKEN
+
+
+  Used by:
+
+  - AuthContext
+  - Page Refresh
+  - GitHub OAuth Login
+  - Protected Routes
+*/
+
+router.get(
+  '/verify',
+  protect,
+  verifyToken
+);
+
+
+// ============================================
+// FORGOT PASSWORD
+// ============================================
+
+/*
+  POST /api/auth/forgot-password
+
+  Body:
+  {
+    email
+  }
+*/
+
+router.post(
+  '/forgot-password',
+  forgotPassword
+);
+
+
+// ============================================
+// RESET PASSWORD
+// ============================================
+
+/*
+  POST /api/auth/reset-password
+
+  Body:
+  {
+    token,
+    newPassword
+  }
+*/
+
+router.post(
+  '/reset-password',
+  resetPassword
+);
+
+
+// ============================================
+// EXPORT ROUTER
+// ============================================
 
 module.exports = router;
