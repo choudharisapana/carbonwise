@@ -21,7 +21,7 @@ import {
 import StatsCard from "../../components/Cards/StatsCard";
 import CarbonChart from "../../components/charts/CarbonCharts";
 import EnergyChart from "../../components/charts/EnergyCharts";
-import RepoCard from "../../components/cards/RepoCard";
+import RepoCard from "../../components/Cards/RepoCard";
 import Card from "../../components/common/Card";
 import Button from "../../components/common/Button";
 import Loader from "../../components/common/Loader";
