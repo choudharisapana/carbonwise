@@ -10,7 +10,13 @@ import {
   FaBoxOpen,
   FaSyncAlt,
   FaExclamationTriangle,
-  FaSpinner
+  FaSpinner,
+  FaChevronDown,
+  FaChevronUp,
+  FaSearch,
+  FaLightbulb,
+  FaArrowRight,
+  FaChartLine
 } from "react-icons/fa";
 
 import Card from "../common/Card";
@@ -32,7 +38,14 @@ const IMPACT_META = {
   low: "bg-gray-500/15 text-gray-400 border-gray-500/30"
 };
 
+const CONFIDENCE_META = {
+  high: "text-emerald-400",
+  medium: "text-amber-400",
+  low: "text-gray-400"
+};
+
 const AISuggestions = ({ analysisId }) => {
+  const [expandedId, setExpandedId] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
@@ -181,27 +194,88 @@ const AISuggestions = ({ analysisId }) => {
         {suggestions.map((s) => {
           const meta = CATEGORY_META[s.suggestionType] || CATEGORY_META.architecture;
           const Icon = meta.icon;
+          const id = s._id || s.title;
+          const isExpanded = expandedId === id;
+          const hasEvidence = s.whatWasFound || s.whyItMatters || s.recommendedAction || s.expectedImpact;
 
           return (
             <div
-              key={s._id || s.title}
-              className={`flex items-start gap-3 p-4 rounded-xl ${meta.bg} border ${meta.border} hover:brightness-110 transition-all`}
+              key={id}
+              className={`rounded-xl ${meta.bg} border ${meta.border} hover:brightness-110 transition-all overflow-hidden`}
             >
-              <Icon className={`${meta.color} mt-1 flex-shrink-0 text-lg`} />
+              <button
+                type="button"
+                onClick={() => hasEvidence && setExpandedId(isExpanded ? null : id)}
+                className="w-full flex items-start gap-3 p-4 text-left"
+              >
+                <Icon className={`${meta.color} mt-1 flex-shrink-0 text-lg`} />
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center flex-wrap gap-2 mb-1">
-                  <h4 className="text-white font-medium">{s.title}</h4>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full border ${IMPACT_META[s.impact] || IMPACT_META.medium}`}
-                  >
-                    {s.impact} impact
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center flex-wrap gap-2 mb-1">
+                    <h4 className="text-white font-medium">{s.title}</h4>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full border ${IMPACT_META[s.impact] || IMPACT_META.medium}`}
+                    >
+                      {s.impact} impact
+                    </span>
+                    {s.confidence && (
+                      <span className={`text-xs ${CONFIDENCE_META[s.confidence] || CONFIDENCE_META.medium}`}>
+                        {s.confidence} confidence
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    {s.description}
+                  </p>
                 </div>
-                <p className="text-gray-300 text-sm leading-relaxed">
-                  {s.description}
-                </p>
-              </div>
+
+                {hasEvidence && (
+                  <span className="text-gray-500 mt-1 flex-shrink-0">
+                    {isExpanded ? <FaChevronUp size={14} /> : <FaChevronDown size={14} />}
+                  </span>
+                )}
+              </button>
+
+              {isExpanded && hasEvidence && (
+                <div className="px-4 pb-4 pt-1 space-y-3 border-t border-white/5 ml-8">
+                  {s.whatWasFound && (
+                    <div className="flex gap-2">
+                      <FaSearch className="text-gray-400 mt-0.5 flex-shrink-0" size={13} />
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">What was found</p>
+                        <p className="text-sm text-gray-300 mt-0.5">{s.whatWasFound}</p>
+                      </div>
+                    </div>
+                  )}
+                  {s.whyItMatters && (
+                    <div className="flex gap-2">
+                      <FaLightbulb className="text-gray-400 mt-0.5 flex-shrink-0" size={13} />
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Why it matters</p>
+                        <p className="text-sm text-gray-300 mt-0.5">{s.whyItMatters}</p>
+                      </div>
+                    </div>
+                  )}
+                  {s.recommendedAction && (
+                    <div className="flex gap-2">
+                      <FaArrowRight className="text-gray-400 mt-0.5 flex-shrink-0" size={13} />
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Recommended action</p>
+                        <p className="text-sm text-gray-300 mt-0.5">{s.recommendedAction}</p>
+                      </div>
+                    </div>
+                  )}
+                  {s.expectedImpact && (
+                    <div className="flex gap-2">
+                      <FaChartLine className="text-gray-400 mt-0.5 flex-shrink-0" size={13} />
+                      <div>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Expected carbon/energy impact</p>
+                        <p className="text-sm text-gray-300 mt-0.5">{s.expectedImpact}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

@@ -32,14 +32,6 @@ import {
 import Button from '../../components/common/Button';
 
 
-// ==========================================
-// API URL
-// ==========================================
-
-// ==========================================
-// API URL
-// ==========================================
-
 const BACKEND_URL =
   (
     import.meta.env.VITE_API_URL ||
@@ -47,9 +39,6 @@ const BACKEND_URL =
   ).replace(/\/api\/?$/, '');
 
 
-// ==========================================
-// LOGIN COMPONENT
-// ==========================================
 
 const Login = () => {
 
@@ -67,9 +56,7 @@ const Login = () => {
   } = useContext(AuthContext);
 
 
-  // ==========================================
-  // URL STATUS
-  // ==========================================
+  
 
   const verified =
     searchParams.get('verified') === 'true';
@@ -81,9 +68,7 @@ const Login = () => {
     searchParams.get('github') === 'error';
 
 
-  // ==========================================
-  // FORM STATE
-  // ==========================================
+  
 
   const [formData, setFormData] =
     useState({
@@ -115,9 +100,7 @@ const Login = () => {
     useState('');
 
 
-  // ==========================================
-  // REDIRECT IF ALREADY LOGGED IN
-  // ==========================================
+
 
   useEffect(() => {
 
@@ -133,9 +116,7 @@ const Login = () => {
   ]);
 
 
-  // ==========================================
-  // SUCCESS / ERROR MESSAGES
-  // ==========================================
+ 
 
   useEffect(() => {
 
@@ -172,9 +153,7 @@ const Login = () => {
   ]);
 
 
-  // ==========================================
-  // HANDLE INPUT CHANGE
-  // ==========================================
+  
 
   const handleChange = (e) => {
 
@@ -200,9 +179,6 @@ const Login = () => {
   };
 
 
-  // ==========================================
-  // GITHUB LOGIN
-  // ==========================================
 
   const handleGithubLogin = () => {
 
@@ -216,10 +192,7 @@ const Login = () => {
 };
 
 
-  // ==========================================
-  // RESEND VERIFICATION EMAIL
-  // ==========================================
-
+  
   const handleResendVerification =
     async () => {
 
@@ -275,9 +248,7 @@ const Login = () => {
     };
 
 
-  // ==========================================
-  // LOGIN SUBMIT
-  // ==========================================
+  
 
   const handleSubmit =
     async (e) => {
@@ -363,18 +334,13 @@ const Login = () => {
     };
 
 
-  // ==========================================
-  // UI
-  // ==========================================
+  
 
   return (
 
     <div className="min-h-screen flex bg-[#071021]">
 
 
-      {/* ======================================
-          LEFT BRANDING SECTION
-      ====================================== */}
 
       <div
         className="
@@ -391,8 +357,6 @@ const Login = () => {
         }}
       >
 
-
-        {/* Background Glow */}
 
         <div className="absolute inset-0 overflow-hidden">
 
@@ -556,11 +520,11 @@ const Login = () => {
 
           {/* Heading */}
 
-          <h2
+          <h1
             className="
               text-3xl
               xl:text-4xl
-              font-light
+              font-bold
               text-white/90
               leading-relaxed
               mb-4
@@ -582,7 +546,7 @@ const Login = () => {
 
             </span>
 
-          </h2>
+          </h1>
 
 
           <p
@@ -612,7 +576,7 @@ const Login = () => {
 
               {
                 icon: FaRocket,
-                text: 'AI-Powered Code Optimization'
+                text: 'AI-Powered Code Optimization Suggestions'
               },
 
               {
@@ -703,10 +667,7 @@ const Login = () => {
 
 
 
-      {/* ======================================
-          RIGHT LOGIN SECTION
-      ====================================== */}
-
+     
       <div
         className="
           flex-1
@@ -795,10 +756,7 @@ const Login = () => {
 
 
 
-          {/* ======================================
-              LOGIN CARD
-          ====================================== */}
-
+         
           <div
             className="
               bg-[#0F172A]/90
@@ -852,9 +810,7 @@ const Login = () => {
 
 
 
-            {/* ======================================
-                SUCCESS / VERIFICATION MESSAGE
-            ====================================== */}
+           
 
             {verificationMessage && (
 
@@ -928,9 +884,7 @@ const Login = () => {
 
 
 
-            {/* ======================================
-                ERROR MESSAGE
-            ====================================== */}
+          
 
             {error && (
 
@@ -955,9 +909,7 @@ const Login = () => {
 
 
 
-            {/* ======================================
-                GITHUB LOGIN
-            ====================================== */}
+            
 
             <button
               type="button"
@@ -1006,9 +958,7 @@ const Login = () => {
 
 
 
-            {/* ======================================
-                DIVIDER
-            ====================================== */}
+           
 
             <div
               className="
@@ -1050,9 +1000,7 @@ const Login = () => {
 
 
 
-            {/* ======================================
-                EMAIL LOGIN FORM
-            ====================================== */}
+     
 
             <form
               onSubmit={handleSubmit}
