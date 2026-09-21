@@ -1,600 +1,204 @@
-const {
-  generateJSON
-} = require(
-  './geminiService'
-);
+const { generateJSON } = require('./geminiService');
 
+const VALID_TYPES = ['energy', 'performance', 'carbon', 'architecture', 'dependency'];
+const VALID_IMPACT = ['low', 'medium', 'high'];
+const VALID_CONFIDENCE = ['low', 'medium', 'high'];
 
-// ====================================
-// VALID VALUES
-// ====================================
+/**
+ * Builds a prompt grounded ONLY in real, verified data from this specific
+ * analysis. Every data category is explicitly labeled as either AVAILABLE
+ * (with real numbers/names) or NOT AVAILABLE — the model is instructed to
+ * only generate suggestions for categories marked available, so it can't
+ * fabricate a "CI optimization" suggestion for a repo with no CI data, or
+ * invent dependency names that were never fetched.
+ *
+ * IMPORTANT distinction: "not available" (we never fetched this data) is
+ * different from "checked and found zero" (we fetched it and there
+ * genuinely isn't any) — every section below states explicitly which one
+ * applies, so the model never treats missing data as evidence of absence.
+ */
+const buildPrompt = ({ analysis, repository }) => {
+  const availability = analysis.dataAvailability || {};
+  const ciStats = analysis.ciStats || {};
+  const fileStats = analysis.fileStats || {};
+  const breakdown = analysis.energyBreakdown || {};
+  const dependencyUsage = analysis.dependencyUsage || [];
 
-const VALID_TYPES = [
+  const deps = analysis.dependencies?.length
+    ? analysis.dependencies.join(', ')
+    : null;
 
-  'energy',
+  const devDeps = analysis.devDependencies?.length
+    ? analysis.devDependencies.join(', ')
+    : null;
 
-  'performance',
+  const languageList = analysis.languageBreakdown && Object.keys(analysis.languageBreakdown).length
+    ? Object.entries(analysis.languageBreakdown)
+        .sort((a, b) => b[1] - a[1])
+        .map(([lang, bytes]) => `${lang} (${(bytes / 1024).toFixed(0)}KB)`)
+        .join(', ')
+    : null;
 
-  'carbon',
+  const largeFilesList = fileStats.largeFiles?.length
+    ? fileStats.largeFiles.map((f) => `${f.path} (${f.sizeKB}KB)`).join(', ')
+    : null;
 
-  'architecture',
+  const configFilesList = fileStats.configFilesDetected?.length
+    ? fileStats.configFilesDetected.join(', ')
+    : null;
 
-  'dependency'
+  const hasDockerfile = fileStats.configFilesDetected?.includes('Dockerfile') || false;
 
-];
+  // Split dependency usage results into what we could and couldn't verify.
+  const verifiedUnused = dependencyUsage.filter((d) => d.verified && d.referencedInSource === false);
+  const verifiedUsed = dependencyUsage.filter((d) => d.verified && d.referencedInSource === true);
+  const unverified = dependencyUsage.filter((d) => !d.verified);
 
+  // Deep carbon analysis: express each energy component as a % of total
+  // so the AI can reason about WHICH component genuinely dominates this
+  // repo's footprint, instead of just seeing three raw kWh numbers.
+  const totalKWh = analysis.energyConsumption || 0;
+  const ciKWh = breakdown.ciEnergyKWh || 0;
+  const storageKWh = breakdown.storageEnergyKWh || 0;
+  const networkKWh = breakdown.networkEnergyKWh || 0;
+  const pct = (part) => (totalKWh > 0 ? ((part / totalKWh) * 100).toFixed(1) : '0.0');
 
-const VALID_IMPACT = [
+  const scoreBand =
+    analysis.sustainabilityScore >= 90 ? 'A (excellent)' :
+    analysis.sustainabilityScore >= 75 ? 'B (good)' :
+    analysis.sustainabilityScore >= 60 ? 'C (average)' :
+    analysis.sustainabilityScore >= 40 ? 'D (below average)' :
+    'E (poor)';
 
-  'low',
+  const sections = [];
 
-  'medium',
+  sections.push(`REPOSITORY:
+- Name: ${repository.repositoryName}
+- Primary language: ${repository.language}
+- Size: ${(repository.size / 1024).toFixed(2)} MB
+- Stars: ${repository.stars}, Forks: ${repository.forks}`);
 
-  'high'
+  sections.push(`CARBON & ENERGY ANALYSIS RESULTS (always available — computed for every analysis):
+- Carbon score: ${analysis.carbonScore}/100
+- Sustainability score: ${analysis.sustainabilityScore}/100 — Grade ${scoreBand}
+- CO2 emission: ${analysis.co2Emission} grams CO2e for this analysis
+- Total energy consumption: ${totalKWh} kWh
+- DEEP BREAKDOWN (% of this repo's total energy, not generic percentages):
+  • CI/CD compute: ${ciKWh} kWh (${pct(ciKWh)}% of total)
+  • Repository storage: ${storageKWh} kWh (${pct(storageKWh)}% of total)
+  • Dependencies/network transfer: ${networkKWh} kWh (${pct(networkKWh)}% of total)
+- The dominant contributor above is what your suggestions should prioritize — do not spread suggestions evenly across all three components if one clearly dominates.
+- Auto-generated evidence-based findings already computed for this analysis: ${analysis.recommendations?.length ? analysis.recommendations.join(' | ') : 'none'}
+  (Do not just repeat these verbatim — go deeper: explain WHY the dominant component is high using the specific numbers above, and suggest a concrete next step.)`);
 
-];
+  sections.push(
+    availability.languagesAvailable
+      ? `LANGUAGE BREAKDOWN — AVAILABLE:\n- ${languageList}`
+      : `LANGUAGE BREAKDOWN — NOT AVAILABLE for this analysis (we could not fetch it — this does not mean the repo has no languages). Do not make language-specific suggestions beyond the primary language listed above.`
+  );
 
+  if (!availability.dependencyDataAvailable) {
+    sections.push(
+      `DEPENDENCIES — NOT AVAILABLE (no readable package.json — likely not a Node.js project, or the file couldn't be fetched; this does NOT mean the repo has zero dependencies, just that we couldn't read them). Do NOT generate any dependency-specific suggestions.`
+    );
+  } else {
+    sections.push(`DEPENDENCIES — AVAILABLE (${analysis.dependencies?.length || 0} production, ${analysis.devDependencies?.length || 0} dev):
+- Production: ${deps || 'none'}
+- Dev: ${devDeps || 'none'}
 
-// ====================================
-// BUILD AI PROMPT
-// ====================================
+DEPENDENCY SOURCE-CODE USAGE VERIFICATION (via GitHub code search — best effort, not perfect):
+- CONFIRMED referenced in source code: ${verifiedUsed.length ? verifiedUsed.map((d) => d.name).join(', ') : 'none'}
+- CONFIRMED NOT found referenced anywhere in source code: ${verifiedUnused.length ? verifiedUnused.map((d) => d.name).join(', ') : 'none'}
+- NOT VERIFIED (usage unknown — could not be checked): ${unverified.length ? unverified.map((d) => d.name).join(', ') : 'none'}
 
-const buildPrompt =
-  ({
-    analysis,
-    repository
-  }) => {
+RULE: You may ONLY say a dependency is "unused" for names in the CONFIRMED NOT found list above. NEVER claim a dependency in the NOT VERIFIED list is unused — for those, at most note the dependency exists, or say nothing about its usage status.`);
+  }
 
+  sections.push(
+    availability.ciDataAvailable && ciStats.totalRuns > 0
+      ? `CI/CD DATA — AVAILABLE:
+- Total workflow runs analyzed: ${ciStats.totalRuns}
+- Failed runs: ${ciStats.failedRuns}
+- Success rate: ${ciStats.successRate}%
+- Workflow names: ${ciStats.workflowNames?.join(', ') || 'unnamed'}
+- CI compute time: ${breakdown.ciHoursAnalyzed || 0} hours`
+      : `CI/CD DATA — NOT AVAILABLE (no GitHub Actions workflow runs detected, or Actions isn't used/accessible; this does not mean CI is broken, just that there's nothing to analyze). Do NOT generate any CI/CD optimization suggestions.`
+  );
 
-    const dependencies =
-      analysis.dependencies?.length
-        ? analysis.dependencies.join(', ')
-        : 'none';
+  sections.push(
+    availability.fileTreeAvailable
+      ? `FILE STRUCTURE — AVAILABLE:
+- Total files: ${fileStats.totalFiles}
+- Large files (>500KB): ${largeFilesList || 'none found — do not suggest large-file/Git LFS cleanup'}
+- Config/build files detected: ${configFilesList || 'none detected'}
+- Dockerfile present: ${hasDockerfile ? 'YES' : 'NO — do not generate any Docker/container-related suggestions'}
+- GitHub Actions workflow files: ${fileStats.workflowFileCount || 0}`
+      : `FILE STRUCTURE — NOT AVAILABLE (repository file tree could not be read; this does not mean the repo has no large files or config files, just that we couldn't check). Do NOT generate suggestions about large files, Dockerfile/Docker, or repository structure.`
+  );
 
+  return `You are a senior software sustainability engineer reviewing a REAL GitHub repository analysis. Every fact below was collected directly from the GitHub API for this exact repository — nothing here is estimated or assumed.
 
-    const devDependencies =
-      analysis.devDependencies?.length
-        ? analysis.devDependencies.join(', ')
-        : 'none';
+${sections.join('\n\n')}
 
+STRICT RULES:
+1. Only generate a suggestion in a category if that category's data above is marked AVAILABLE. If a category is NOT AVAILABLE, skip it entirely — never treat "not available" as "zero" or as license to guess.
+2. Every suggestion must reference a SPECIFIC real number, package name, file path, or workflow name from the data above. Generic advice that could apply to any repository is not acceptable.
+3. Do not invent facts not present in the data above.
+4. A dependency may only be called "unused" if it appears in the CONFIRMED NOT found list. Never claim a NOT VERIFIED dependency is unused.
+5. Docker/container suggestions are only allowed if "Dockerfile present: YES" above.
+6. At least one suggestion of type "carbon" MUST directly reference the deep breakdown percentages above and explain the dominant contributor, not just restate the total CO2 figure.
+7. Prefer fewer, stronger suggestions: return between 2 and 5 suggestions total. Do NOT pad the list to hit a higher count — 2 well-evidenced suggestions are better than 5 weak ones. It is correct to return fewer than 5 if the available evidence doesn't support more.
+8. For EVERY suggestion, fill in all five fields below with real, specific content — no field should restate the title or be generic filler.
 
-    const breakdown =
-      analysis.energyBreakdown || {};
-
-
-    return `You are a senior Green Software and software sustainability engineer.
-
-Analyze the following REAL repository data and provide practical recommendations.
-
-IMPORTANT RULES:
-
-1. Use ONLY the provided data.
-2. Do NOT invent repository facts.
-3. Reference real numbers where relevant.
-4. Reference actual dependency names when relevant.
-5. Keep recommendations actionable.
-6. Do not mention that you are an AI.
-7. Return ONLY valid JSON.
-8. Generate between 5 and 8 suggestions.
-
-
-REPOSITORY DATA:
-
-Name:
-${repository.repositoryName || 'Unknown'}
-
-Primary Language:
-${repository.language || 'Unknown'}
-
-Repository Size:
-${((repository.size || 0) / 1024).toFixed(2)} MB
-
-Stars:
-${repository.stars || 0}
-
-Forks:
-${repository.forks || 0}
-
-
-ANALYSIS DATA:
-
-Carbon Score:
-${analysis.carbonScore || 0}/100
-
-Sustainability Score:
-${analysis.sustainabilityScore || 0}/100
-
-CO2 Emission:
-${analysis.co2Emission || 0} grams CO2e
-
-Energy Consumption:
-${analysis.energyConsumption || 0} kWh
-
-
-ENERGY BREAKDOWN:
-
-CI/CD Energy:
-${breakdown.ciEnergyKWh || 0} kWh
-
-Storage Energy:
-${breakdown.storageEnergyKWh || 0} kWh
-
-Network/Dependency Energy:
-${breakdown.networkEnergyKWh || 0} kWh
-
-CI/CD Hours:
-${breakdown.ciHoursAnalyzed || 0}
-
-
-DEPENDENCIES:
-
-Production:
-${dependencies}
-
-Development:
-${devDependencies}
-
-
-Generate suggestions across relevant categories:
-
-- energy
-- performance
-- carbon
-- architecture
-- dependency
-
-
-Return ONLY a JSON array.
-
-Each object MUST follow exactly:
-
+Respond ONLY with a JSON array (no markdown, no explanation) where each item has exactly this shape:
 {
-  "suggestionType": "energy",
-  "title": "Short title",
-  "description": "Specific actionable recommendation based on the provided repository data.",
-  "impact": "medium"
-}
-
-
-Allowed suggestionType values:
-
-energy
-performance
-carbon
-architecture
-dependency
-
-
-Allowed impact values:
-
-low
-medium
-high`;
-
-  };
-
-
-// ====================================
-// SANITIZE AI RESPONSE
-// ====================================
-
-const sanitizeSuggestions =
-  (rawSuggestions) => {
-
-
-    if (
-      !Array.isArray(
-        rawSuggestions
-      )
-    ) {
-
-      throw new Error(
-        'Expected an array of suggestions from Gemini'
-      );
-
-    }
-
-
-    const suggestions =
-      rawSuggestions
-
-        .filter(
-          suggestion =>
-
-            suggestion &&
-
-            suggestion.title &&
-
-            suggestion.description
-        )
-
-
-        .map(
-          suggestion => ({
-
-            suggestionType:
-
-              VALID_TYPES.includes(
-                suggestion.suggestionType
-              )
-
-                ? suggestion.suggestionType
-
-                : 'architecture',
-
-
-            title:
-
-              String(
-                suggestion.title
-              )
-                .trim()
-                .slice(
-                  0,
-                  100
-                ),
-
-
-            description:
-
-              String(
-                suggestion.description
-              )
-              .trim()
-              .slice(
-                0,
-                700
-              ),
-
-
-            impact:
-
-              VALID_IMPACT.includes(
-                suggestion.impact
-              )
-
-                ? suggestion.impact
-
-                : 'medium'
-
-          })
-        );
-
-
-    if (
-      suggestions.length === 0
-    ) {
-
-      throw new Error(
-        'Gemini returned no usable suggestions'
-      );
-
-    }
-
-
-    return suggestions.slice(
-      0,
-      8
-    );
-
-  };
-
-
-// ====================================
-// DATA-BASED FALLBACK
-//
-// Used only when Gemini is temporarily
-// unavailable.
-//
-// Suggestions are based on ACTUAL
-// analysis values.
-// ====================================
-
-const generateFallbackSuggestions =
-  ({
-    analysis,
-    repository
-  }) => {
-
-
-    const suggestions = [];
-
-
-    const breakdown =
-      analysis.energyBreakdown || {};
-
-
-    // ====================================
-    // CI/CD
-    // ====================================
-
-    if (
-      breakdown.ciEnergyKWh > 0 ||
-      breakdown.ciHoursAnalyzed > 0
-    ) {
-
-      suggestions.push({
-
-        suggestionType:
-          'energy',
-
-        title:
-          'Optimize CI/CD workflow usage',
-
-        description:
-          `The analysis recorded ${Number(
-            breakdown.ciHoursAnalyzed || 0
-          ).toFixed(2)} CI/CD hours and ${Number(
-            breakdown.ciEnergyKWh || 0
-          ).toFixed(4)} kWh of CI/CD energy usage. Reduce unnecessary workflow runs, cache dependencies, and avoid running expensive jobs when unrelated files change.`,
-
-        impact:
-          'high'
-
-      });
-
-    }
-
-
-    // ====================================
-    // DEPENDENCIES
-    // ====================================
-
-    const dependencyCount =
-      (analysis.dependencies?.length || 0) +
-      (
-        analysis.devDependencies?.length || 0
-      );
-
-
-    if (
-      dependencyCount > 0
-    ) {
-
-      const packages =
-        [
-          ...(analysis.dependencies || []),
-          ...(analysis.devDependencies || [])
-        ];
-
-
-      suggestions.push({
-
-        suggestionType:
-          'dependency',
-
-        title:
-          'Review installed dependencies',
-
-        description:
-          `This analysis found ${dependencyCount} dependencies. Review packages such as ${packages.slice(0, 5).join(', ')} and remove unused packages to reduce installation, build, and dependency processing overhead.`,
-
-        impact:
-          'medium'
-
-      });
-
-    }
-
-
-    // ====================================
-    // CARBON
-    // ====================================
-
-    suggestions.push({
-
-      suggestionType:
-        'carbon',
-
-      title:
-        'Reduce measured carbon impact',
-
-      description:
-        `The repository analysis estimated ${Number(
-          analysis.co2Emission || 0
-        ).toFixed(4)} grams CO2e. Prioritize optimizations in the highest resource-consuming areas and re-analyze after changes to measure improvement.`,
-
-      impact:
-        'high'
-
-    });
-
-
-    // ====================================
-    // ENERGY
-    // ====================================
-
-    suggestions.push({
-
-      suggestionType:
-        'energy',
-
-      title:
-        'Reduce overall energy consumption',
-
-      description:
-        `Current estimated energy consumption is ${Number(
-          analysis.energyConsumption || 0
-        ).toFixed(4)} kWh. Reduce unnecessary computation, network requests, and repeated processing to improve energy efficiency.`,
-
-      impact:
-        'medium'
-
-    });
-
-
-    // ====================================
-    // PERFORMANCE
-    // ====================================
-
-    suggestions.push({
-
-      suggestionType:
-        'performance',
-
-      title:
-        'Profile performance hotspots',
-
-      description:
-        'Profile CPU-intensive operations, unnecessary repeated computations, and expensive I/O paths. Focus optimization on measured bottlenecks instead of applying changes blindly.',
-
-      impact:
-        'medium'
-
-    });
-
-
-    // ====================================
-    // ARCHITECTURE
-    // ====================================
-
-    suggestions.push({
-
-      suggestionType:
-        'architecture',
-
-      title:
-        'Improve resource-aware architecture',
-
-      description:
-        `Use modular components and avoid unnecessary data processing across the ${repository.language || 'current'} codebase. Design expensive operations to run only when required.`,
-
-      impact:
-        'medium'
-
-    });
-
-
-    // ====================================
-    // STORAGE
-    // ====================================
-
-    if (
-      breakdown.storageEnergyKWh > 0
-    ) {
-
-      suggestions.push({
-
-        suggestionType:
-          'energy',
-
-        title:
-          'Optimize storage usage',
-
-        description:
-          `Storage energy was estimated at ${Number(
-            breakdown.storageEnergyKWh
-          ).toFixed(4)} kWh. Remove obsolete artifacts, unnecessary cached files, and redundant stored data.`,
-
-        impact:
-          'low'
-
-      });
-
-    }
-
-
-    return suggestions.slice(
-      0,
-      8
-    );
-
-  };
-
-
-// ====================================
-// GENERATE AI SUGGESTIONS
-// ====================================
-
-const generateSuggestions =
-  async ({
-    analysis,
-    repository
-  }) => {
-
-
-    const prompt =
-      buildPrompt({
-
-        analysis,
-
-        repository
-
-      });
-
-
-    try {
-
-
-      // ====================================
-      // REAL GEMINI AI
-      // ====================================
-
-      const raw =
-        await generateJSON(
-          prompt
-        );
-
-
-      return sanitizeSuggestions(
-        raw
-      );
-
-
-    }
-
-    catch (error) {
-
-
-      console.error(
-        'Gemini suggestion generation failed:',
-        error.message
-      );
-
-
-      // ====================================
-      // DATA BASED FALLBACK
-      // ====================================
-
-      const fallback =
-        generateFallbackSuggestions({
-
-          analysis,
-
-          repository
-
-        });
-
-
-      if (
-        fallback.length === 0
-      ) {
-
-        throw error;
-
-      }
-
-
-      console.warn(
-        'Using data-based AI fallback suggestions'
-      );
-
-
-      return fallback;
-
-
-    }
-
-
-  };
-
-
-// ====================================
-// EXPORT
-// ====================================
-
-module.exports = {
-
-  generateSuggestions
-
+  "suggestionType": one of "energy" | "performance" | "carbon" | "architecture" | "dependency",
+  "title": "short specific title, under 60 characters",
+  "whatWasFound": "the specific real evidence this is based on — exact numbers, names, or paths from the data above",
+  "whyItMatters": "why this specific finding is a sustainability/carbon concern",
+  "recommendedAction": "the exact, concrete next step to take — specific enough someone could act on it immediately",
+  "expectedImpact": "the expected carbon/energy effect of taking this action, grounded in the numbers above where possible",
+  "confidence": one of "low" | "medium" | "high" — how confident you are given the evidence quality,
+  "impact": one of "low" | "medium" | "high" — how much this matters relative to the repo's overall footprint,
+  "description": "1-2 sentence summary combining whatWasFound and recommendedAction, for compact display"
+}`;
 };
+
+/**
+ * Generates real AI suggestions from Gemini based on actual, structured
+ * analysis data (never hardcoded/templated suggestions).
+ */
+const generateSuggestions = async ({ analysis, repository }) => {
+  const prompt = buildPrompt({ analysis, repository });
+
+  const raw = await generateJSON(prompt);
+
+  if (!Array.isArray(raw)) {
+    throw new Error('Expected an array of suggestions from Gemini');
+  }
+
+  // Sanitize — never trust the model's output shape blindly, since it
+  // gets written straight into MongoDB.
+  const suggestions = raw
+    .filter((s) => s && s.title && (s.recommendedAction || s.description))
+    .slice(0, 5) // hard cap regardless of what the model returned
+    .map((s) => ({
+      suggestionType: VALID_TYPES.includes(s.suggestionType) ? s.suggestionType : 'architecture',
+      title: String(s.title).slice(0, 100),
+      description: String(s.description || s.recommendedAction || '').slice(0, 600),
+      whatWasFound: String(s.whatWasFound || '').slice(0, 500),
+      whyItMatters: String(s.whyItMatters || '').slice(0, 500),
+      recommendedAction: String(s.recommendedAction || '').slice(0, 500),
+      expectedImpact: String(s.expectedImpact || '').slice(0, 300),
+      confidence: VALID_CONFIDENCE.includes(s.confidence) ? s.confidence : 'medium',
+      impact: VALID_IMPACT.includes(s.impact) ? s.impact : 'medium'
+    }));
+
+  if (suggestions.length === 0) {
+    throw new Error('Gemini returned no usable suggestions');
+  }
+
+  return suggestions;
+};
+
+module.exports = { generateSuggestions };

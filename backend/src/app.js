@@ -1,5 +1,4 @@
 
-// backend/src/app.js
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -16,10 +15,21 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// CORS — reads allowed origin from env instead of hardcoding localhost
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  ...((process.env.EXTRA_ALLOWED_ORIGINS || '').split(',').map((url) => url.trim()).filter(Boolean))
+];
+
 app.use(cors({
-  origin: allowedOrigin,
+  origin: (origin, callback) => {
+    // Allow server-to-server / same-origin requests with no Origin header
+    // (health checks, curl, etc.)
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

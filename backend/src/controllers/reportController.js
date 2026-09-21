@@ -18,6 +18,17 @@ const generateReport = async (req, res) => {
       });
     }
 
+    // SECURITY: verify this analysis actually belongs to the requesting
+    // user before generating/exposing a report from it — otherwise any
+    // logged-in user could generate a report for someone else's analysis
+    // by passing their analysisId.
+    if (analysis.user.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "You do not have access to this analysis",
+      });
+    }
+
     // Check Repository
     const repository = await Repository.findById(analysis.repository);
 

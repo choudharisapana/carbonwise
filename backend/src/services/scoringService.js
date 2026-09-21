@@ -1,22 +1,43 @@
 /**
  * Composite scoring service.
  *
- * The core "carbonScore" (0-100, based on actual gCO2e) now comes from
+ * The core "carbonScore" (0-100, based on actual gCO2e) comes from
  * carbonCalculatorService, which uses real fetched data. This service adds
  * supporting sub-scores that describe engineering practices tied to
- * sustainability — each is now based on real signals, not stand-ins like
+ * sustainability — each based on real signals, not stand-ins like
  * "stars > 100" which have no causal relationship to emissions.
+ *
+ * IMPORTANT: when a data source wasn't available for this analysis (private
+ * repo without Actions access, no package.json, tree fetch failed), the
+ * corresponding sub-score stays at its neutral default rather than being
+ * pulled down — absence of data is not evidence of a problem.
  */
-const calculateScore = ({ carbonResult, repository, ciHoursAnalyzed = 0, dependencyCount = 0 }) => {
+const calculateScore = ({
+  carbonResult,
+  repository,
+  ciHoursAnalyzed = 0,
+  dependencyCount = 0,
+  ciStats = { hasData: false },
+  fileStats = { hasData: false }
+}) => {
   const { sustainabilityScore: carbonScore } = carbonResult;
 
-  // CI/CD health: repos with SOME CI/CD activity are being tested/automated
-  // (fewer manual deploys = fewer redundant/failed runs over time). A repo
-  // with zero detected runs isn't necessarily worse, so we score neutrally.
-  const ciCdScore = ciHoursAnalyzed > 0 ? 80 : 60;
+  // CI/CD health: starts from the same neutral baseline as before (some
+  // activity detected vs none). If we have a real, meaningfully-sized
+  // sample of CI runs (3+), refine it using actual success rate instead
+  // of just "did any CI run at all".
+  let ciCdScore = ciHoursAnalyzed > 0 ? 80 : 60;
+
+  if (ciStats.hasData && ciStats.totalRuns >= 3 && ciStats.successRate !== null) {
+    // Blend: base activity score still counts for something, but a real
+    // reliability signal (successRate) now carries most of the weight.
+    ciCdScore = Math.round(ciStats.successRate * 0.7 + ciCdScore * 0.3);
+  }
 
   // Dependency health: fewer dependencies generally means smaller attack
-  // surface, faster installs, and lower network transfer energy.
+  // surface, faster installs, and lower network transfer energy. A repo
+  // with 0 detected dependencies (e.g. non-Node project, or no
+  // package.json readable) is scored neutrally-high, not penalized.
   let dependencyScore = 90;
   if (dependencyCount > 80) dependencyScore = 40;
   else if (dependencyCount > 40) dependencyScore = 60;
@@ -28,6 +49,13 @@ const calculateScore = ({ carbonResult, repository, ciHoursAnalyzed = 0, depende
   let codebaseScore = 90;
   if (sizeGB > 1) codebaseScore = 50;
   else if (sizeGB > 0.25) codebaseScore = 70;
+
+  // Small, evidence-gated adjustment: genuinely large tracked files are a
+  // real storage/bloat signal independent of overall repo size. Only
+  // applied when the file tree was actually readable.
+  if (fileStats.hasData && fileStats.largeFiles?.length > 0) {
+    codebaseScore = Math.max(30, codebaseScore - fileStats.largeFiles.length * 5);
+  }
 
   const finalScore = Math.round(
     carbonScore * 0.5 +

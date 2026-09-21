@@ -148,6 +148,9 @@ const addRepository = async (req, res) => {
                 size:
                     repo.size || 0,
 
+                defaultBranch:
+                    repo.default_branch || 'main',
+
                 visibility:
                     repo.private
                         ? 'private'

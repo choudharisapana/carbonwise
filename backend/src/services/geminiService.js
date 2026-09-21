@@ -1,399 +1,101 @@
-// const axios = require('axios');
-
-// const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-// const GEMINI_API_URL =
-//   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-
-// /**
-//  * Calls Google Gemini's generateContent endpoint with a prompt and returns
-//  * the parsed JSON the model produced. Uses Gemini's JSON mode
-//  * (responseMimeType: "application/json") so the model is constrained to
-//  * return valid JSON matching the shape we ask for in the prompt, instead
-//  * of freeform text we'd have to parse ourselves.
-//  *
-//  * Throws on any failure (missing key, network error, malformed response) —
-//  * callers are expected to catch this and degrade gracefully.
-//  */
-// const generateJSON = async (prompt) => {
-//   const apiKey = process.env.GEMINI_API_KEY;
-
-//   if (!apiKey) {
-//     throw new Error(
-//       'GEMINI_API_KEY is not set in .env — get a free key at https://aistudio.google.com/apikey'
-//     );
-//   }
-
-//   const response = await axios.post(
-//     GEMINI_API_URL,
-//     {
-//       contents: [
-//         {
-//           parts: [{ text: prompt }]
-//         }
-//       ],
-//       generationConfig: {
-//         responseMimeType: 'application/json',
-//         temperature: 0.4
-//       }
-//     },
-//     {
-//       headers: {
-//         'x-goog-api-key': apiKey,
-//         'Content-Type': 'application/json'
-//       },
-//       timeout: 25000
-//     }
-//   );
-
-//   const text =
-//     response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-//   if (!text) {
-//     throw new Error('Gemini returned an empty response');
-//   }
-
-//   try {
-//     return JSON.parse(text);
-//   } catch (parseError) {
-//     throw new Error('Gemini returned malformed JSON');
-//   }
-// };
-
-// module.exports = { generateJSON };
-
 const axios = require('axios');
 
-const GEMINI_MODEL =
-  process.env.GEMINI_MODEL ||
-  'gemini-2.5-flash';
+// "gemini-flash-latest" is Google's stable alias that always points at the
+// current recommended Flash model — avoids the 404s that happen when a
+// pinned version (e.g. "gemini-2.5-flash") gets deprecated/rotated on
+// Google's side. GEMINI_MODEL in .env can still override this if needed.
+const PRIMARY_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-latest';
+// If the primary model 404s (model unavailable for this key/region), retry
+// once against a second, independently-versioned model before giving up.
+const FALLBACK_MODEL = 'gemini-2.0-flash';
 
-const getGeminiApiUrl = () => {
+const buildUrl = (model) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-  return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const callGemini = async (model, prompt, apiKey) => {
+  const response = await axios.post(
+    buildUrl(model),
+    {
+      contents: [
+        {
+          parts: [{ text: prompt }]
+        }
+      ],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0.4
+      }
+    },
+    {
+      headers: {
+        'x-goog-api-key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      timeout: 25000
+    }
+  );
 
+  const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new Error('Gemini returned an empty response');
+  }
+
+  return text;
 };
 
+/**
+ * Calls Google Gemini's generateContent endpoint with a prompt and returns
+ * the parsed JSON the model produced. Uses Gemini's JSON mode
+ * (responseMimeType: "application/json") so the model is constrained to
+ * return valid JSON matching the shape we ask for in the prompt, instead
+ * of freeform text we'd have to parse ourselves.
+ *
+ * Automatically retries once against FALLBACK_MODEL if the primary model
+ * returns 404 (a known, currently-occurring issue where specific pinned
+ * Gemini model versions intermittently stop resolving — see
+ * https://ai.google.dev/gemini-api/docs/models for the current list).
+ *
+ * Throws on any failure (missing key, network error, malformed response) —
+ * callers are expected to catch this and degrade gracefully.
+ */
+const generateJSON = async (prompt) => {
+  const apiKey = process.env.GEMINI_API_KEY;
 
-// ====================================
-// Generate JSON using Gemini
-// ====================================
+  if (!apiKey) {
+    throw new Error(
+      'GEMINI_API_KEY is not set in .env — get a free key at https://aistudio.google.com/apikey'
+    );
+  }
 
-const generateJSON =
-  async (prompt) => {
+  let text;
 
-    const apiKey =
-      process.env.GEMINI_API_KEY;
+  try {
+    text = await callGemini(PRIMARY_MODEL, prompt, apiKey);
+  } catch (error) {
+    const status = error.response?.status;
+    const geminiMessage = error.response?.data?.error?.message;
 
-
-    // ====================================
-    // API KEY CHECK
-    // ====================================
-
-    if (!apiKey) {
-
-      throw new Error(
-        'GEMINI_API_KEY is not configured in the backend .env file'
+    if (status === 404) {
+      console.warn(
+        `Gemini model "${PRIMARY_MODEL}" returned 404 (${geminiMessage || 'model unavailable'}), retrying with "${FALLBACK_MODEL}"...`
       );
-
-    }
-
-
-    try {
-
-      const response =
-        await axios.post(
-
-          getGeminiApiUrl(),
-
-          {
-
-            contents: [
-
-              {
-
-                role: 'user',
-
-                parts: [
-
-                  {
-                    text: prompt
-                  }
-
-                ]
-
-              }
-
-            ],
-
-
-            generationConfig: {
-
-              responseMimeType:
-                'application/json',
-
-              temperature:
-                0.4,
-
-              maxOutputTokens:
-                4096
-
-            }
-
-          },
-
-
-          {
-
-            headers: {
-
-              'x-goog-api-key':
-                apiKey,
-
-              'Content-Type':
-                'application/json'
-
-            },
-
-
-            timeout:
-              30000
-
-          }
-
-        );
-
-
-      // ====================================
-      // CHECK GEMINI RESPONSE
-      // ====================================
-
-      const candidate =
-        response.data?.candidates?.[0];
-
-
-      if (!candidate) {
-
-        console.error(
-          'Gemini empty response:',
-          JSON.stringify(
-            response.data,
-            null,
-            2
-          )
-        );
-
-
-        throw new Error(
-          'Gemini did not return a valid candidate'
-        );
-
-      }
-
-
-      // ====================================
-      // BLOCKED RESPONSE CHECK
-      // ====================================
-
-      if (
-        candidate.finishReason &&
-        candidate.finishReason !== 'STOP'
-      ) {
-
-        console.error(
-          'Gemini generation stopped:',
-          candidate.finishReason
-        );
-
-      }
-
-
-      const text =
-        candidate
-          ?.content
-          ?.parts
-          ?.map(
-            part => part.text || ''
-          )
-          .join('')
-          .trim();
-
-
-      if (!text) {
-
-        console.error(
-          'Gemini response has no text:',
-          JSON.stringify(
-            response.data,
-            null,
-            2
-          )
-        );
-
-
-        throw new Error(
-          'Gemini returned an empty response'
-        );
-
-      }
-
-
-      // ====================================
-      // PARSE JSON
-      // ====================================
-
       try {
-
-        return JSON.parse(
-          text
-        );
-
+        text = await callGemini(FALLBACK_MODEL, prompt, apiKey);
+      } catch (fallbackError) {
+        const fallbackMessage = fallbackError.response?.data?.error?.message || fallbackError.message;
+        throw new Error(`Gemini API error (both models failed): ${fallbackMessage}`);
       }
-
-      catch (parseError) {
-
-        console.error(
-          'Gemini invalid JSON response:',
-          text
-        );
-
-
-        throw new Error(
-          'Gemini returned malformed JSON'
-        );
-
-      }
-
-
+    } else {
+      throw new Error(`Gemini API error: ${geminiMessage || error.message}`);
     }
+  }
 
-    catch (error) {
-
-
-      // ====================================
-      // GEMINI API ERROR
-      // ====================================
-
-      if (error.response) {
-
-        const status =
-          error.response.status;
-
-
-        const apiMessage =
-          error.response.data
-            ?.error
-            ?.message;
-
-
-        console.error(
-          'Gemini API Error:',
-          {
-            status,
-            message:
-              apiMessage,
-            data:
-              error.response.data
-          }
-        );
-
-
-        if (status === 400) {
-
-          throw new Error(
-            apiMessage ||
-            'Invalid Gemini request'
-          );
-
-        }
-
-
-        if (status === 401) {
-
-          throw new Error(
-            'Gemini API authentication failed. Check GEMINI_API_KEY.'
-          );
-
-        }
-
-
-        if (status === 403) {
-
-          throw new Error(
-            apiMessage ||
-            'Gemini API access denied. Check API key permissions.'
-          );
-
-        }
-
-
-        if (status === 404) {
-
-          throw new Error(
-            `Gemini model "${GEMINI_MODEL}" was not found or is unavailable.`
-          );
-
-        }
-
-
-        if (status === 429) {
-
-          throw new Error(
-            'Gemini API quota or rate limit exceeded. Please try again later.'
-          );
-
-        }
-
-
-        throw new Error(
-          apiMessage ||
-          `Gemini API request failed with status ${status}`
-        );
-
-      }
-
-
-      // ====================================
-      // TIMEOUT
-      // ====================================
-
-      if (
-        error.code ===
-        'ECONNABORTED'
-      ) {
-
-        throw new Error(
-          'Gemini API request timed out. Please try again.'
-        );
-
-      }
-
-
-      // ====================================
-      // NETWORK ERROR
-      // ====================================
-
-      if (
-        error.message
-      ) {
-
-        throw error;
-
-      }
-
-
-      throw new Error(
-        'Unknown Gemini API error'
-      );
-
-
-    }
-
-
-  };
-
-
-module.exports = {
-
-  generateJSON
-
+  try {
+    return JSON.parse(text);
+  } catch (parseError) {
+    throw new Error('Gemini returned malformed JSON');
+  }
 };
+
+module.exports = { generateJSON };

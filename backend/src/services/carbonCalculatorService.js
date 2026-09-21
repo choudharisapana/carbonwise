@@ -12,18 +12,33 @@ const {
  * Calculate estimated CO2 emissions for a repository based on REAL,
  * fetched data — not placeholder heuristics.
  *
+ * Core energy/CO2 math is UNCHANGED from the original methodology (still
+ * cited in the comments below) — only the recommendations generation was
+ * expanded to reference the additional real evidence now available
+ * (CI reliability, large files, language mix), when that data was
+ * actually collected for this analysis.
+ *
  * Inputs:
- *   repository: { size } — size in KB, from GitHub repo metadata
+ *   repository: { size, language } — from GitHub repo metadata
  *   ciBillableMs: total real GitHub Actions billable milliseconds
- *                 (from githubService.fetchTotalCiBillableMs)
  *   dependencyCount: number of npm dependencies (from package.json)
+ *   ciStats: optional — { hasData, totalRuns, failedRuns, successRate }
+ *   fileStats: optional — { hasData, largeFiles, configFilesDetected }
+ *   languageBreakdown: optional — { hasData, languages: {JS: bytes, ...} }
  *
  * Methodology: energy (kWh) per component, summed, then multiplied by
  * grid carbon intensity (gCO2/kWh) — modeled on the Green Software
  * Foundation's Software Carbon Intensity (SCI) formula shape.
  * See config/carbonConstants.js for cited sources on every coefficient.
  */
-const calculateCarbon = ({ repository, ciBillableMs = 0, dependencyCount = 0 }) => {
+const calculateCarbon = ({
+  repository,
+  ciBillableMs = 0,
+  dependencyCount = 0,
+  ciStats = { hasData: false },
+  fileStats = { hasData: false },
+  languageBreakdown = { hasData: false }
+}) => {
   const sizeGB = (repository.size || 0) / (1024 * 1024); // GitHub size is in KB
 
   // --- Component 1: CI/CD compute energy (real measured data) ---
@@ -51,7 +66,9 @@ const calculateCarbon = ({ repository, ciBillableMs = 0, dependencyCount = 0 }) 
   const band = SCORE_BANDS.find((b) => co2Grams <= b.maxGrams);
   const sustainabilityScore = band ? band.score : 10;
 
-  // --- Recommendations based on which component actually dominates ---
+  // --- Recommendations — each one only fires when the underlying data
+  // actually supports it. No recommendation is generated from a category
+  // whose data wasn't available for this analysis. ---
   const recommendations = [];
   const components = [
     { name: 'CI/CD compute', value: ciEnergyKWh },
@@ -79,8 +96,30 @@ const calculateCarbon = ({ repository, ciBillableMs = 0, dependencyCount = 0 }) 
     );
   }
 
-  if (repository.language === 'JavaScript' || repository.language === 'TypeScript') {
-    recommendations.push('Enable tree-shaking and code-splitting in your bundler to reduce shipped code size.');
+  // Evidence-gated: only mention CI reliability if we actually have CI run
+  // data with a meaningful sample (avoid drawing conclusions from 1-2 runs).
+  if (ciStats.hasData && ciStats.totalRuns >= 3 && ciStats.successRate < 80) {
+    recommendations.push(
+      `${ciStats.failedRuns} of your last ${ciStats.totalRuns} workflow runs failed (${ciStats.successRate}% success rate) — failed runs still consume compute energy without producing value, so fixing flaky CI steps would reduce wasted emissions.`
+    );
+  }
+
+  // Evidence-gated: only mention large files if the file tree was actually
+  // readable and genuinely found some.
+  if (fileStats.hasData && fileStats.largeFiles?.length > 0) {
+    const biggest = fileStats.largeFiles[0];
+    recommendations.push(
+      `${fileStats.largeFiles.length} file(s) over 500KB were found in the repository (largest: ${biggest.path} at ${biggest.sizeKB}KB) — consider Git LFS or removing them from history if they're binary assets.`
+    );
+  }
+
+  // Evidence-gated: only mention language mix if we actually got a
+  // breakdown with more than one language present.
+  if (languageBreakdown.hasData) {
+    const langs = Object.keys(languageBreakdown.languages || {});
+    if (repository.language === 'JavaScript' || repository.language === 'TypeScript' || langs.includes('JavaScript') || langs.includes('TypeScript')) {
+      recommendations.push('Enable tree-shaking and code-splitting in your bundler to reduce shipped code size.');
+    }
   }
 
   return {
@@ -96,7 +135,7 @@ const calculateCarbon = ({ repository, ciBillableMs = 0, dependencyCount = 0 }) 
     sustainabilityScore,
     carbonScore: sustainabilityScore,
     recommendations,
-    methodology: 'Estimated using real CI/CD compute time (GitHub Actions API), repository size, and dependency count, converted to energy via Cloud Carbon Footprint / Sustainable Web Design coefficients, then to CO2e via global average grid carbon intensity (Ember Global Electricity Review).'
+    methodology: 'Estimated using real CI/CD compute time (GitHub Actions API), repository size, and dependency count, converted to energy via Cloud Carbon Footprint / Sustainable Web Design coefficients, then to CO2e via global average grid carbon intensity (Ember Global Electricity Review). Recommendations are additionally grounded in real CI reliability, file structure, and language composition data where available.'
   };
 };
 

@@ -30,6 +30,24 @@ const aiSuggestionSchema = new mongoose.Schema({
 
     description: String,
 
+    // Structured, evidence-based breakdown — every suggestion must be
+    // traceable to real analysis data via these fields, not just a title
+    // and a paragraph.
+    whatWasFound: String,      // the specific real evidence (numbers, names, paths)
+    whyItMatters: String,      // why that evidence is a sustainability concern
+    recommendedAction: String, // exact, concrete next step
+    expectedImpact: String,    // expected carbon/energy effect of taking the action
+
+    confidence: {
+        type: String,
+        enum: [
+            'low',
+            'medium',
+            'high'
+        ],
+        default: 'medium'
+    },
+
     impact: {
         type: String,
         enum: [
