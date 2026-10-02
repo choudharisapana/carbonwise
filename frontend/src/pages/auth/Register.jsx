@@ -13,9 +13,11 @@ import {
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
-import { FaGithub } from 'react-icons/fa';
+
+import { FaGithub,FaLeaf } from 'react-icons/fa';
 import { AuthContext } from '../../context/AuthContext';
 import Button from '../../components/common/Button';
+import { BACKEND_URL } from '../../utils/apiConfig';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -36,10 +38,6 @@ const Register = () => {
 
   const { register, isAuthenticated } = useContext(AuthContext);
   const navigate = useNavigate();
-
-  const BACKEND_URL = (
-    import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-  ).replace(/\/api\/?$/, '');
 
   useEffect(() => {
     if (isAuthenticated && !success) {
@@ -156,27 +154,106 @@ const Register = () => {
               'linear-gradient(135deg, #081C15 0%, #123524 50%, #1B5E3A 100%)',
           }}
         >
-          {/* Decorative glows — same visual language as Login */}
           <div className="absolute -left-32 -top-32 h-80 w-80 rounded-full bg-emerald-400/10 blur-3xl" />
           <div className="absolute -bottom-40 -right-20 h-96 w-96 rounded-full bg-emerald-300/10 blur-3xl" />
 
           <div className="relative z-10 flex w-full flex-col justify-center px-10 xl:px-16">
-            {/* Logo */}
-            <div className="mb-9 flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-950/30">
-                <Leaf className="h-6 w-6 text-white" strokeWidth={2.2} />
-              </div>
-
-              <div className="text-2xl font-bold tracking-tight">
-                Carbon<span className="text-emerald-300">Wise</span>
-              </div>
-            </div>
-
-            {/* Badge */}
-            <div className="mb-6 flex w-fit items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-4 py-2 text-sm font-medium text-emerald-200">
-              <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.8)]" />
-              Green Software Intelligence
-            </div>
+            
+                      {/* Logo */}
+            
+                      <div
+                        className="
+                          flex
+                          items-center
+                          gap-4
+                          mb-10
+                        "
+                      >
+            
+                        <div className="relative">
+            
+                          <div
+                            className="
+                              absolute
+                              inset-0
+                              rounded-2xl
+                              bg-emerald-400/30
+                              blur-xl
+                            "
+                          />
+            
+                          <div
+                            className="
+                              relative
+                              w-16
+                              h-16
+                              rounded-2xl
+                              flex
+                              items-center
+                              justify-center
+                              bg-gradient-to-br
+                              from-emerald-400
+                              to-emerald-600
+                              shadow-xl
+                              shadow-emerald-500/20
+                            "
+                          >
+            
+                            <FaLeaf
+                              className="
+                                text-white
+                                text-3xl
+                              "
+                            />
+            
+                          </div>
+            
+                        </div>
+            
+            
+                        <div>
+            
+                          <h1
+                            className="
+                              text-4xl
+                              font-bold
+                              tracking-tight
+                              text-white
+                            "
+                          >
+            
+                            Carbon
+                            <span className="text-emerald-300">
+                              Wise
+                            </span>
+            
+                          </h1>
+            
+            
+                          <div
+                            className="
+                              inline-flex
+                              items-center
+                              mt-2
+                              px-3
+                              py-1
+                              rounded-full
+                              text-xs
+                              text-emerald-100/80
+                              bg-emerald-400/10
+                              border
+                              border-emerald-300/20
+                              backdrop-blur-sm
+                            "
+                          >
+            
+                            Green Software Intelligence
+            
+                          </div>
+            
+                        </div>
+            
+                      </div>
 
             {/* Heading */}
             <h1    className="

@@ -17,6 +17,7 @@ import {
 import Card from "../../components/common/Card";
 import Button from "../../components/common/Button";
 import reportService from "../../services/reportService";
+import { API_URL } from "../../utils/apiConfig";
 
 const ReportDetails = () => {
   const { id } = useParams();
@@ -26,10 +27,6 @@ const ReportDetails = () => {
   const [loading, setLoading] = useState(true);
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const API_URL =
-    import.meta.env.VITE_API_URL ||
-    "http://localhost:5000/api";
 
   // ==========================================
   // Fetch Report

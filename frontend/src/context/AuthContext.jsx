@@ -6,15 +6,11 @@ import React, {
 
 import axios from "axios";
 import authService from "../services/authService";
+import { API_URL } from "../utils/apiConfig";
 
 
 export const AuthContext =
   createContext();
-
-
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "http://localhost:5000/api";
 
 
 const AuthProvider = ({ children }) => {

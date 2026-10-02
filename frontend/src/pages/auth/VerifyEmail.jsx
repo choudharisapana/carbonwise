@@ -11,6 +11,7 @@ import {
 import axios from 'axios';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
+import { API_URL } from '../../utils/apiConfig';
 
 const VerifyEmail = () => {
   const { token } = useParams();
@@ -32,7 +33,7 @@ const VerifyEmail = () => {
   const verifyEmail = async () => {
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/auth/verify-email/${token}`
+        `${API_URL}/auth/verify-email/${token}`
       );
 
       if (response.data.success) {

@@ -55,9 +55,7 @@ const Navbar = ({ onToggleSidebar }) => {
   const notificationRef = useRef(null);
   const searchInputRef = useRef(null);
 
-  // ==========================================
-  // CLOSE DROPDOWNS WHEN CLICKING OUTSIDE
-  // ==========================================
+
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -129,12 +127,7 @@ const Navbar = ({ onToggleSidebar }) => {
 
     if (!query) return;
 
-    /*
-      IMPORTANT:
-      Your current project route is /repository.
-      Keep this route if RepositoryAnalysis.jsx
-      is registered at /repository.
-    */
+    
     navigate(`/repository?search=${encodeURIComponent(query)}`);
 
     setSearchQuery('');

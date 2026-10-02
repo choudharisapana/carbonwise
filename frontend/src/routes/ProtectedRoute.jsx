@@ -18,7 +18,7 @@ const ProtectedRoute = () => {
 
   // ✅ Simply check authentication - verification already checked at login
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/Home" replace />;
   }
 
   return <Outlet />;

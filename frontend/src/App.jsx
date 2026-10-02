@@ -11,6 +11,9 @@ import ThemeProvider from './context/ThemeContext';
 import ProtectedRoute from './routes/ProtectedRoute';
 import Layout from './components/layout/Layout';
 
+// Home Page
+import Home from './pages/Home';
+
 // Auth Pages
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
@@ -50,10 +53,15 @@ function App() {
 
           <Routes>
 
-
             {/* =========================
                 PUBLIC ROUTES
             ========================= */}
+
+            {/* CarbonWise Landing Page */}
+            <Route
+              path="/"
+              element={<Home />}
+            />
 
             <Route
               path="/login"
@@ -97,25 +105,16 @@ function App() {
             {/* GitHub OAuth Success */}
 
             <Route
-  path="/auth/github-success"
-  element={<GitHubSuccess />}
-/>
+              path="/auth/github-success"
+              element={<GitHubSuccess />}
+            />
+
+
             {/* =========================
                 PROTECTED ROUTES
             ========================= */}
 
             <Route element={<ProtectedRoute />}>
-
-
-              <Route
-                path="/"
-                element={
-                  <Layout>
-                    <Navigate to="/dashboard" />
-                  </Layout>
-                }
-              />
-
 
               <Route
                 path="/dashboard"
@@ -186,7 +185,6 @@ function App() {
                 }
               />
 
-
             </Route>
 
 
@@ -196,9 +194,8 @@ function App() {
 
             <Route
               path="*"
-              element={<Navigate to="/login" />}
+              element={<Navigate to="/" />}
             />
-
 
           </Routes>
 

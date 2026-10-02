@@ -1,7 +1,8 @@
 import axios from "axios";
+import { API_URL as BASE_API_URL } from "../utils/apiConfig";
 
-const API_URL = `${import.meta.env.VITE_API_URL}/reports`;
-const EXPORT_API_URL = `${import.meta.env.VITE_API_URL}/export`;
+const API_URL = `${BASE_API_URL}/reports`;
+const EXPORT_API_URL = `${BASE_API_URL}/export`;
 
 const getToken = () => localStorage.getItem("token");
 
