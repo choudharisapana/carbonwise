@@ -1,33 +1,28 @@
-
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const dotenv = require('dotenv');
-const cookieParser = require('cookie-parser');
-const { errorHandler, notFound } = require('./middleware/errorMiddleware');
-const { apiLimiter } = require('./middleware/rateLimiter');
-
 dotenv.config();
 
 const app = express();
 
+// Trust Render's reverse proxy
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet());
 
-
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
-  ...((process.env.EXTRA_ALLOWED_ORIGINS || '').split(',').map((url) => url.trim()).filter(Boolean))
+  ...((process.env.EXTRA_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean))
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow server-to-server / same-origin requests with no Origin header
-    // (health checks, curl, etc.)
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
+
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
