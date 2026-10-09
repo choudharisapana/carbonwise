@@ -1,22 +1,26 @@
 // backend/src/controllers/authController.js
+
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const emailService = require('../services/emailService');
 const generateToken = require('../utils/generateToken');
 
-// @desc    Register user
+// ============================================================
+// REGISTER USER
 // @route   POST /api/auth/register
 // @access  Public
+// ============================================================
 const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Check if user exists
+    // Check if user already exists
     const userExists = await User.findOne({ email });
+
     if (userExists) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'User already exists with this email' 
+        message: 'User already exists with this email'
       });
     }
 
@@ -33,30 +37,50 @@ const registerUser = async (req, res) => {
 
     // Send verification email
     try {
-      await emailService.sendVerificationEmail(email, name, verificationToken);
+      await emailService.sendVerificationEmail(
+        email,
+        name,
+        verificationToken
+      );
+
+      return res.status(201).json({
+        success: true,
+        emailSent: true,
+        message:
+          'Registration successful. Verification email sent. Please check your inbox.'
+      });
+
     } catch (emailError) {
-      console.error('Email sending failed:', emailError);
-      // Don't block registration if email fails
+      console.error(
+        '❌ Verification email sending failed:',
+        emailError
+      );
+
+      return res.status(201).json({
+        success: true,
+        emailSent: false,
+        needsVerification: true,
+        message:
+          'Registration successful, but we could not send the verification email. Please use Resend Verification.'
+      });
     }
 
-    // ✅ CORRECT: NO JWT TOKEN RETURNED
-    res.status(201).json({
-      success: true,
-      message: 'Verification email sent. Please check your inbox to verify your account.'
-    });
-
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ 
+    console.error('❌ Register error:', error);
+
+    return res.status(500).json({
       success: false,
-      message: 'Server error during registration' 
+      message: 'Server error during registration'
     });
   }
 };
 
-// @desc    Verify email
+
+// ============================================================
+// VERIFY EMAIL
 // @route   GET /api/auth/verify-email/:token
 // @access  Public
+// ============================================================
 const verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
@@ -68,7 +92,7 @@ const verifyEmail = async (req, res) => {
       });
     }
 
-    // Find user with this token
+    // Find user with valid verification token
     const user = await User.findOne({
       verificationToken: token,
       verificationTokenExpiry: { $gt: Date.now() }
@@ -77,40 +101,53 @@ const verifyEmail = async (req, res) => {
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired verification token. Please request a new one.'
+        message:
+          'Invalid or expired verification token. Please request a new one.'
       });
     }
 
-    // ✅ Update user
+    // Mark email as verified
     user.isVerified = true;
     user.verificationToken = null;
     user.verificationTokenExpiry = null;
+
     await user.save();
 
     // Send welcome email
     try {
-      await emailService.sendVerificationSuccessEmail(user.email, user.name);
+      await emailService.sendVerificationSuccessEmail(
+        user.email,
+        user.name
+      );
     } catch (emailError) {
-      console.error('Welcome email failed:', emailError);
+      console.error(
+        '⚠️ Welcome email failed:',
+        emailError
+      );
+      // Welcome email is non-critical
     }
 
-    // ✅ Redirect to login with success message
-    res.json({
-    success: true,
-    message: 'Email verified successfully'
-  });
+    return res.json({
+      success: true,
+      message: 'Email verified successfully'
+    });
+
   } catch (error) {
-    console.error('Verify email error:', error);
-    res.status(500).json({
+    console.error('❌ Verify email error:', error);
+
+    return res.status(500).json({
       success: false,
       message: 'Server error during verification'
     });
   }
 };
 
-// @desc    Resend verification email
+
+// ============================================================
+// RESEND VERIFICATION EMAIL
 // @route   POST /api/auth/resend-verification
 // @access  Public
+// ============================================================
 const resendVerification = async (req, res) => {
   try {
     const { email } = req.body;
@@ -122,15 +159,20 @@ const resendVerification = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({
+      email: email.trim().toLowerCase()
+    });
 
+    // Don't reveal whether account exists
     if (!user) {
       return res.json({
         success: true,
-        message: 'If an unverified account with that email exists, a verification link has been sent.'
+        message:
+          'If an unverified account with that email exists, a verification link has been sent.'
       });
     }
 
+    // Already verified
     if (user.isVerified) {
       return res.status(400).json({
         success: false,
@@ -140,33 +182,63 @@ const resendVerification = async (req, res) => {
 
     // Generate new verification token
     const verificationToken = user.generateVerificationToken();
+
     await user.save();
 
-    // Send new verification email
-    await emailService.sendVerificationEmail(email, user.name, verificationToken);
+    // Send verification email
+    try {
+      await emailService.sendVerificationEmail(
+        user.email,
+        user.name,
+        verificationToken
+      );
 
-    res.json({
-      success: true,
-      message: 'Verification email resent successfully. Please check your inbox.'
-    });
+      return res.json({
+        success: true,
+        emailSent: true,
+        message:
+          'Verification email resent successfully. Please check your inbox.'
+      });
+
+    } catch (emailError) {
+      console.error(
+        '❌ Resend verification email failed:',
+        emailError
+      );
+
+      return res.status(500).json({
+        success: false,
+        emailSent: false,
+        message:
+          'Unable to send verification email. Please try again later.'
+      });
+    }
 
   } catch (error) {
-    console.error('Resend verification error:', error);
-    res.status(500).json({
+    console.error(
+      '❌ Resend verification error:',
+      error
+    );
+
+    return res.status(500).json({
       success: false,
-      message: 'Server error while resending verification'
+      message:
+        'Server error while resending verification'
     });
   }
 };
 
-// @desc    Login user
+
+// ============================================================
+// LOGIN USER
 // @route   POST /api/auth/login
 // @access  Public
+// ============================================================
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user + explicitly include password
+    // Find user and explicitly include password
     const user = await User.findOne({
       email: email.trim().toLowerCase()
     }).select('+password');
@@ -180,6 +252,7 @@ const loginUser = async (req, res) => {
 
     // Check password
     const isMatch = await user.matchPassword(password);
+
     if (!isMatch) {
       return res.status(401).json({
         success: false,
@@ -187,12 +260,12 @@ const loginUser = async (req, res) => {
       });
     }
 
-
-    // ✅ Check if email is verified
+    // Check email verification
     if (!user.isVerified) {
       return res.status(401).json({
         success: false,
-        message: 'Please verify your email before logging in. Check your inbox for the verification link.',
+        message:
+          'Please verify your email before logging in. Check your inbox for the verification link.',
         needsVerification: true,
         email: user.email
       });
@@ -200,12 +273,13 @@ const loginUser = async (req, res) => {
 
     // Update last login
     user.lastLogin = new Date();
+
     await user.save();
 
-    // ✅ Generate JWT ONLY AFTER VERIFICATION
+    // Generate JWT only after verification
     const token = generateToken(user._id);
 
-    res.json({
+    return res.json({
       success: true,
       token,
       user: {
@@ -218,68 +292,131 @@ const loginUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
+    console.error('❌ Login error:', error);
+
+    return res.status(500).json({
       success: false,
       message: 'Server error during login'
     });
   }
 };
 
+
+// ============================================================
+// VERIFY JWT TOKEN
+// ============================================================
 const verifyToken = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id).select('-password');
+  try {
+    const user = await User.findById(req.user.id)
+      .select('-password');
 
-        res.json({
-            success: true,
-            user
-        });
+    return res.json({
+      success: true,
+      user
+    });
 
-    } catch(error) {
-        res.status(401).json({
-            success: false
-        });
-    }
+  } catch (error) {
+    console.error('❌ Verify token error:', error);
+
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token'
+    });
+  }
 };
-// @desc    Forgot password
+
+
+// ============================================================
+// FORGOT PASSWORD
 // @route   POST /api/auth/forgot-password
 // @access  Public
+// ============================================================
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
-    const user = await User.findOne({ email });
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await User.findOne({
+      email: normalizedEmail
+    });
+
+    // Don't reveal whether account exists
     if (!user) {
       return res.json({
         success: true,
-        message: 'If an account with that email exists, a password reset email has been sent. Please check your inbox.'
+        message:
+          'If an account with that email exists, a password reset email has been sent. Please check your inbox.'
       });
     }
 
     // Generate reset token
     const resetToken = user.generateResetToken();
+
     await user.save();
 
     // Send reset email
-    await emailService.sendPasswordResetEmail(email, user.name, resetToken);
+    try {
+      await emailService.sendPasswordResetEmail(
+        user.email,
+        user.name,
+        resetToken
+      );
 
-    res.json({
-      success: true,
-      message: 'Password reset email sent. Please check your inbox.'
-    });
+      return res.json({
+        success: true,
+        emailSent: true,
+        message:
+          'Password reset email sent. Please check your inbox.'
+      });
+
+    } catch (emailError) {
+      console.error(
+        '❌ Password reset email failed:',
+        emailError
+      );
+
+      // Invalidate token if email wasn't sent
+      user.resetPasswordToken = null;
+      user.resetPasswordExpiry = null;
+
+      await user.save();
+
+      return res.status(500).json({
+        success: false,
+        emailSent: false,
+        message:
+          'Unable to send password reset email. Please try again later.'
+      });
+    }
 
   } catch (error) {
-    console.error('Forgot password error:', error);
-    res.status(500).json({
+    console.error(
+      '❌ Forgot password error:',
+      error
+    );
+
+    return res.status(500).json({
       success: false,
-      message: 'Server error while processing request'
+      message:
+        'Server error while processing request'
     });
   }
 };
 
-// @desc    Reset password
+
+// ============================================================
+// RESET PASSWORD
 // @route   POST /api/auth/reset-password
 // @access  Public
+// ============================================================
 const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
@@ -287,7 +424,8 @@ const resetPassword = async (req, res) => {
     if (!token || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Token and new password are required'
+        message:
+          'Token and new password are required'
       });
     }
 
@@ -299,29 +437,44 @@ const resetPassword = async (req, res) => {
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired reset token. Please request a new one.'
+        message:
+          'Invalid or expired reset token. Please request a new one.'
       });
     }
 
+    // Update password
     user.password = newPassword;
+
+    // Clear reset token
     user.resetPasswordToken = null;
     user.resetPasswordExpiry = null;
+
     await user.save();
 
-    res.json({
+    return res.json({
       success: true,
-      message: 'Password reset successfully! You can now login with your new password.'
+      message:
+        'Password reset successfully! You can now login with your new password.'
     });
 
   } catch (error) {
-    console.error('Reset password error:', error);
-    res.status(500).json({
+    console.error(
+      '❌ Reset password error:',
+      error
+    );
+
+    return res.status(500).json({
       success: false,
-      message: 'Server error while resetting password'
+      message:
+        'Server error while resetting password'
     });
   }
 };
 
+
+// ============================================================
+// EXPORT CONTROLLERS
+// ============================================================
 module.exports = {
   registerUser,
   verifyEmail,
